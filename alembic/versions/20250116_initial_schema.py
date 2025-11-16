@@ -90,7 +90,7 @@ def upgrade() -> None:
         sa.Column('dominant_disease', sa.String(length=50), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
+        sa.PrimaryKeyConstraint('id', 'time_bucket'),  # Composite key for TimescaleDB
         sa.UniqueConstraint('row_id', 'time_bucket', name='uq_row_time_bucket')
     )
     op.create_index(op.f('ix_risk_summaries_row_id'), 'risk_summaries', ['row_id'], unique=False)
