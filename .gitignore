@@ -47,7 +47,7 @@ logs/
 *.log
 
 # Data
-data/raw/*
+#data/raw/*
 data/processed/*
 data/images/*
 !data/raw/.gitkeep
