@@ -23,7 +23,7 @@ def prepare_dataset(data_dir: Path, output_dir: Path) -> Path:
     Prepare dataset in YOLO format.
 
     Args:
-        data_dir: Raw dataset directory
+        data_dir: Raw dataset directory (can be data/raw or data/processed/yolo_dataset)
         output_dir: Output directory for YOLO-formatted dataset
 
     Returns:
@@ -34,6 +34,12 @@ def prepare_dataset(data_dir: Path, output_dir: Path) -> Path:
     # Create YOLO dataset structure
     yolo_dir = output_dir / "yolo_dataset"
     yolo_dir.mkdir(parents=True, exist_ok=True)
+
+    # First check if data/processed/yolo_dataset exists (converted dataset)
+    processed_dataset = Path("data/processed/yolo_dataset/data.yaml")
+    if processed_dataset.exists():
+        print(f"Found converted dataset: {processed_dataset}")
+        return processed_dataset
 
     # If dataset is already in YOLO format, find the data.yaml
     yaml_files = list(data_dir.rglob("data.yaml")) + list(data_dir.rglob("dataset.yaml"))
