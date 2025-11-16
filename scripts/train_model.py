@@ -124,11 +124,13 @@ def train_yolo(
         device=device,
         project=str(output_dir) if output_dir else "runs/detect",
         name="strawberry_disease",
-        patience=10,  # Early stopping patience
+        patience=15,  # Early stopping patience
         save=True,
         save_period=10,  # Save checkpoint every 10 epochs
-        cache=False,  # Don't cache images (memory intensive)
+        cache='ram',  # Cache images in RAM (great for high-RAM systems)
         exist_ok=True,
+        workers=8,  # More workers for CPU training
+        amp=False,  # Disable AMP for CPU
     )
 
     # Get path to best model
