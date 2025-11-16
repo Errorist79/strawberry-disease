@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
+import torch
 from PIL import Image
 from ultralytics import YOLO
 
@@ -93,6 +94,9 @@ class DiseaseClassifier:
 
         try:
             logger.info(f"Loading YOLO model from {self.model_path}")
+            # PyTorch 2.6+ requires weights_only=False for YOLO models
+            # This is safe for trusted model files
+            torch.serialization.add_safe_globals(['ultralytics.nn.tasks.DetectionModel'])
             self.model = YOLO(str(self.model_path))
             self._is_loaded = True
             logger.info("Model loaded successfully")
