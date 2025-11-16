@@ -1,4 +1,5 @@
 # Core ML and Computer Vision
+# torch - already installed in NGC image
 ultralytics>=8.3.0
 opencv-python>=4.10.0
 pillow>=10.4.0
