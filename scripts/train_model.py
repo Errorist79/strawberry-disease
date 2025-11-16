@@ -127,7 +127,7 @@ def train_yolo(
         patience=15,  # Early stopping patience
         save=True,
         save_period=10,  # Save checkpoint every 10 epochs
-        cache='ram',  # Cache images in RAM (great for high-RAM systems)
+        cache='disk',  # Use disk cache to save GPU memory
         exist_ok=True,
         workers=8,  # More workers for CPU training
         amp=False,  # Disable AMP for CPU
