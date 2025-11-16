@@ -1,0 +1,44 @@
+# Camera configuration for the greenhouse
+# Each camera monitors a specific row/block
+
+cameras:
+  - name: "camera_row_1"
+    location: "Greenhouse North - Row 1"
+    row_id: "row_1"
+    stream_url: null  # For simulation mode
+    is_active: true
+    description: "Monitors strawberry plants in row 1"
+
+  - name: "camera_row_2"
+    location: "Greenhouse North - Row 2"
+    row_id: "row_2"
+    stream_url: null
+    is_active: true
+    description: "Monitors strawberry plants in row 2"
+
+  - name: "camera_row_3"
+    location: "Greenhouse Center - Row 3"
+    row_id: "row_3"
+    stream_url: null
+    is_active: true
+    description: "Monitors strawberry plants in row 3"
+
+  - name: "camera_row_4"
+    location: "Greenhouse Center - Row 4"
+    row_id: "row_4"
+    stream_url: null
+    is_active: true
+    description: "Monitors strawberry plants in row 4"
+
+  - name: "camera_row_5"
+    location: "Greenhouse South - Row 5"
+    row_id: "row_5"
+    stream_url: null
+    is_active: true
+    description: "Monitors strawberry plants in row 5"
+
+# Simulation mode configuration
+simulation:
+  enabled: true  # Set to false when using real cameras
+  sample_images_dir: "data/raw/test/images"  # Directory with sample images for simulation
+  rotation_mode: "random"  # How to select images: "random", "sequential", "round_robin"

@@ -1,0 +1,212 @@
+{
+  "dashboard": {
+    "title": "Strawberry Disease Risk Monitoring",
+    "tags": ["disease", "risk", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Overview",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 4},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT COUNT(*) as active_cameras FROM cameras WHERE is_active = true;",
+            "format": "table"
+          },
+          {
+            "refId": "B",
+            "rawSql": "SELECT COUNT(*) as total_images FROM images;",
+            "format": "table"
+          },
+          {
+            "refId": "C",
+            "rawSql": "SELECT COUNT(*) as pending_images FROM images WHERE status = 'pending';",
+            "format": "table"
+          },
+          {
+            "refId": "D",
+            "rawSql": "SELECT COUNT(DISTINCT row_id) as rows_at_risk FROM risk_summaries WHERE max_risk_score >= 70;",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Risk Heat Map by Row",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT DISTINCT ON (row_id) row_id, time_bucket, avg_risk_score, max_risk_score, dominant_disease, sample_count FROM risk_summaries ORDER BY row_id, time_bucket DESC;",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 40, "color": "yellow"},
+                {"value": 70, "color": "orange"},
+                {"value": 85, "color": "red"}
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "max_risk_score"},
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "gradient-gauge"
+                },
+                {
+                  "id": "max",
+                  "value": 100
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "title": "Risk Trend - Last 24 Hours",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT time_bucket as time, row_id, avg_risk_score FROM risk_summaries WHERE time_bucket >= NOW() - INTERVAL '24 hours' ORDER BY time_bucket;",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 10,
+              "showPoints": "auto"
+            },
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 40, "color": "yellow"},
+                {"value": 70, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Disease Distribution",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 12, "w": 8, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT dominant_disease, COUNT(*) as count FROM risk_summaries WHERE time_bucket >= NOW() - INTERVAL '24 hours' GROUP BY dominant_disease;",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          },
+          "pieType": "pie",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Top 5 High Risk Rows",
+        "type": "bargauge",
+        "gridPos": {"x": 8, "y": 12, "w": 8, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT DISTINCT ON (row_id) row_id, max_risk_score FROM risk_summaries ORDER BY row_id, time_bucket DESC, max_risk_score DESC LIMIT 5;",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 40, "color": "yellow"},
+                {"value": 70, "color": "orange"},
+                {"value": 85, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        }
+      },
+      {
+        "id": 6,
+        "title": "Image Processing Status",
+        "type": "piechart",
+        "gridPos": {"x": 16, "y": 12, "w": 8, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT status, COUNT(*) as count FROM images GROUP BY status;",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "pieType": "donut"
+        }
+      }
+    ]
+  }
+}
