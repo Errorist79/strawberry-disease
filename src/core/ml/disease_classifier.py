@@ -94,9 +94,8 @@ class DiseaseClassifier:
 
         try:
             logger.info(f"Loading YOLO model from {self.model_path}")
-            # PyTorch 2.6+ requires weights_only=False for YOLO models
-            # This is safe for trusted model files
-            torch.serialization.add_safe_globals(['ultralytics.nn.tasks.DetectionModel'])
+            # PyTorch 2.6+ changed the default value of weights_only to True
+            # TORCH_FORCE_WEIGHTS_ONLY_LOAD=0 is set in the Dockerfile for trusted model files
             self.model = YOLO(str(self.model_path))
             self._is_loaded = True
             logger.info("Model loaded successfully")

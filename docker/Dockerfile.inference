@@ -20,5 +20,6 @@ RUN mkdir -p logs data/images models/weights
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV TORCH_FORCE_WEIGHTS_ONLY_LOAD=0
 
 CMD ["python", "-m", "src.services.inference_service"]
