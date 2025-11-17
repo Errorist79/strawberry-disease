@@ -227,7 +227,7 @@ def main():
     parser.add_argument(
         "--preset",
         type=str,
-        choices=["quick_test", "standard", "anti_overfitting", "fine_tuning"],
+        choices=["quick_test", "standard", "anti_overfitting", "fine_tuning", "balanced_oversampled"],
         help="Use training preset (overrides other settings)",
     )
     parser.add_argument(
