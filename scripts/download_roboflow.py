@@ -85,8 +85,14 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
         print(f"Accessing workspace: {workspace}")
         print(f"Dataset: {dataset_name}")
 
-        # Get project
-        project = rf.workspace(workspace).project(dataset_name)
+        # Get project - use the correct API method
+        # The modern Roboflow API uses rf.workspace().project() or direct project access
+        try:
+            project = rf.workspace(workspace).project(dataset_name)
+        except (AttributeError, KeyError) as e:
+            # Fallback: try direct project access
+            print(f"Trying alternative access method...")
+            project = rf.project(f"{workspace}/{dataset_name}")
 
         # Download latest version (version 1 is usually the latest/published version)
         print("\nDownloading dataset (using latest version)...")
@@ -97,7 +103,7 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
         version_obj = project.version(1)
 
         print(f"Downloading to: {output_dir}")
-        dataset = version_obj.download(format)
+        dataset = version_obj.download(format, location=str(output_dir.absolute()))
 
         # Dataset object contains the actual download location
         print(f"\nDataset download info:")
