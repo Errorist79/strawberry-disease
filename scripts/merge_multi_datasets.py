@@ -154,7 +154,16 @@ class MultiDatasetMerger:
         with open(dataset['yaml_path']) as f:
             config = yaml.safe_load(f)
 
-        dataset_path = Path(config.get('path', dataset['yaml_path'].parent))
+        # Get dataset path - prefer 'path' field, fallback to yaml parent directory
+        if 'path' in config:
+            dataset_path = Path(config['path'])
+            # If path is relative, make it relative to yaml_path
+            if not dataset_path.is_absolute():
+                dataset_path = dataset['yaml_path'].parent / dataset_path
+        else:
+            # Use yaml file's parent directory
+            dataset_path = dataset['yaml_path'].parent
+
         class_names = config.get('names', [])
 
         if not class_names:
@@ -185,11 +194,14 @@ class MultiDatasetMerger:
             labels_in = self._find_labels_dir(images_in, dataset_path, images_rel)
 
             if not images_in.exists():
-                print(f"  Warning: {split} images not found at {images_in}")
+                print(f"  ⚠️  Warning: {split} images not found")
+                print(f"      Expected path: {images_in}")
+                print(f"      Dataset path: {dataset_path}")
+                print(f"      Images rel: {images_rel}")
                 continue
 
             if not labels_in.exists():
-                print(f"  Warning: {split} labels not found")
+                print(f"  ⚠️  Warning: {split} labels not found at {labels_in}")
                 continue
 
             # Process images/labels
