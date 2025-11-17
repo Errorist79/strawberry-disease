@@ -317,16 +317,20 @@ class OversamplingStrategy:
 
                     if vary_augmentation_for_this_image:
                         # Apply augmentation
+                        original_image_copy = image.copy()
                         aug_image, aug_bboxes, aug_class_labels = self._apply_augmentation(
                             image.copy(), bboxes.copy(), class_labels.copy(), copy_idx
                         )
 
                         # Track augmentation success
                         augmentation_stats['total'] += 1
-                        if aug_bboxes == bboxes:  # Check if fallback was used
-                            augmentation_stats['fallback'] += 1
-                        else:
+                        # Check if image was actually augmented (not just bbox comparison)
+                        # Color augmentation doesn't change bboxes but still augments image
+                        image_changed = not np.array_equal(aug_image, original_image_copy)
+                        if image_changed:
                             augmentation_stats['succeeded'] += 1
+                        else:
+                            augmentation_stats['fallback'] += 1
 
                         # Save augmented image
                         aug_image_bgr = cv2.cvtColor(aug_image, cv2.COLOR_RGB2BGR)
