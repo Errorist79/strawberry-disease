@@ -164,16 +164,17 @@ class OversamplingStrategy:
         """
         preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
 
-        if not bboxes:
-            # No bounding boxes, just augment image
-            augmented = preset(image=image)
-            return augmented['image'], [], []
-
-        # Apply augmentation with bboxes
+        # Apply augmentation
         try:
             # Check if this preset processes bboxes
-            if hasattr(preset, 'processors') and preset.processors.get('bboxes'):
-                # Preset has bbox processing
+            has_bbox_processor = hasattr(preset, 'processors') and 'bboxes' in preset.processors
+
+            if not bboxes or not has_bbox_processor:
+                # No bboxes OR color-only preset - just augment image
+                augmented = preset(image=image)
+                return augmented['image'], bboxes, class_labels
+            else:
+                # Preset has bbox processing and we have bboxes
                 augmented = preset(image=image, bboxes=bboxes, class_labels=class_labels)
 
                 # Check if we still have bounding boxes after augmentation
@@ -182,13 +183,9 @@ class OversamplingStrategy:
                     return image, bboxes, class_labels
 
                 return augmented['image'], augmented['bboxes'], augmented['class_labels']
-            else:
-                # Color-only preset, no bbox processing - just augment image
-                augmented = preset(image=image)
-                return augmented['image'], bboxes, class_labels
         except Exception as e:
             # If augmentation fails, return original (silent for common bbox errors)
-            if "Expected" not in str(e) and "x_max" not in str(e):
+            if "Expected" not in str(e) and "x_max" not in str(e) and "label_fields" not in str(e):
                 print(f"Warning: Unexpected augmentation error: {e}")
             return image, bboxes, class_labels
 
