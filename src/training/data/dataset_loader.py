@@ -283,7 +283,7 @@ class DatasetLoader:
                     shutil.copy(label_file, dst_labels / (img_file.stem + ".txt"))
 
         # Save config
-        output_yaml = output_path / "dataset.yaml"
+        output_yaml = output_path / "data.yaml"
         with open(output_yaml, "w") as f:
             yaml.dump(subset_config, f)
 

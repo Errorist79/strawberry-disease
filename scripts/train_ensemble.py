@@ -33,7 +33,7 @@ def main():
         "--data-yaml",
         type=Path,
         required=True,
-        help="Path to dataset.yaml file",
+        help="Path to data.yaml file",
     )
     parser.add_argument(
         "--validate-data",

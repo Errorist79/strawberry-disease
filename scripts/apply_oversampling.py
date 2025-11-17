@@ -45,7 +45,7 @@ def main():
         '--dataset',
         type=Path,
         required=True,
-        help='Path to dataset.yaml'
+        help='Path to data.yaml'
     )
     parser.add_argument(
         '--output',

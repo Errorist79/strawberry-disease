@@ -417,11 +417,11 @@ class OversamplingStrategy:
                         print(f"Copying {split} split without oversampling...")
                         shutil.copytree(src_base, dst_split_path)
 
-        # Create new dataset.yaml
+        # Create new data.yaml
         new_config = self.config.copy()
         new_config["path"] = str(self.output_dir.absolute())
 
-        output_yaml = self.output_dir / "dataset.yaml"
+        output_yaml = self.output_dir / "data.yaml"
         with open(output_yaml, "w") as f:
             yaml.dump(new_config, f, default_flow_style=False)
 
