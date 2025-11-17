@@ -9,12 +9,14 @@ Merges 4 different datasets into a single unified dataset:
 4. PlantVillage Strawberry (1,565 images)
 
 Supports two strategies:
-- granular: 12 classes (7 diseases + 3 healthy types + leaf_scorch + healthy_general)
-- simple: 9 classes (7 diseases + healthy + leaf_scorch)
+- granular: 11 classes (7 diseases + 3 healthy types + leaf_scorch)
+- simple: 8 classes (7 diseases + healthy + leaf_scorch)
+
+Note: Kaggle dataset has no healthy class, only disease classes.
 
 Usage:
     python scripts/merge_multi_datasets.py \
-        --kaggle data/processed/kaggle/dataset.yaml \
+        --kaggle data/processed/yolo_dataset/data.yaml \
         --roboflow1 data/external/roboflow_4918/data.yaml \
         --roboflow2 data/external/roboflow_2757/data.yaml \
         --plantvillage data/external/plantvillage_strawberry/data.yaml \
@@ -51,7 +53,8 @@ class MultiDatasetMerger:
     def _create_class_mapping(self):
         """Create global class mapping based on strategy."""
         if self.strategy == 'granular':
-            # 12 classes: 7 diseases + 3 healthy types + leaf_scorch + healthy_general
+            # 11 classes: 7 diseases + 3 healthy types + leaf_scorch
+            # Note: Kaggle dataset has no healthy class
             return {
                 'angular_leafspot': 0,
                 'anthracnose_fruit_rot': 1,
@@ -64,10 +67,10 @@ class MultiDatasetMerger:
                 'healthy_flower': 8,
                 'healthy_fruit': 9,
                 'leaf_scorch': 10,
-                'healthy_general': 11,  # Kaggle non-specific healthy
             }
         else:  # simple
-            # 9 classes: 7 diseases + healthy + leaf_scorch
+            # 8 classes: 7 diseases + healthy + leaf_scorch
+            # Note: Kaggle dataset has no healthy class
             return {
                 'angular_leafspot': 0,
                 'anthracnose_fruit_rot': 1,
@@ -76,7 +79,7 @@ class MultiDatasetMerger:
                 'leaf_spot': 4,
                 'powdery_mildew_leaf': 5,
                 'powdery_mildew_fruit': 6,
-                'healthy': 7,  # All healthy merged
+                'healthy': 7,  # All healthy merged (from Roboflow #2 + PlantVillage)
                 'leaf_scorch': 8,
             }
 
@@ -357,14 +360,15 @@ def create_default_class_mappings(strategy: str):
     if strategy == 'granular':
         return {
             'kaggle': {
-                'angular_leafspot': 'angular_leafspot',
-                'anthracnose_fruit_rot': 'anthracnose_fruit_rot',
-                'blossom_blight': 'blossom_blight',
-                'gray_mold': 'gray_mold',
-                'leaf_spot': 'leaf_spot',
-                'powdery_mildew_leaf': 'powdery_mildew_leaf',
-                'powdery_mildew_fruit': 'powdery_mildew_fruit',
-                'healthy': 'healthy_general',
+                # Kaggle class names use spaces
+                'angular leafspot': 'angular_leafspot',
+                'anthracnose fruit rot': 'anthracnose_fruit_rot',
+                'blossom blight': 'blossom_blight',
+                'gray mold': 'gray_mold',
+                'leaf spot': 'leaf_spot',
+                'powdery mildew fruit': 'powdery_mildew_fruit',
+                'powdery mildew leaf': 'powdery_mildew_leaf',
+                # Note: Kaggle dataset has no healthy class
             },
             'roboflow1': {
                 'Angular Leafspot': 'angular_leafspot',
@@ -395,14 +399,15 @@ def create_default_class_mappings(strategy: str):
     else:  # simple
         return {
             'kaggle': {
-                'angular_leafspot': 'angular_leafspot',
-                'anthracnose_fruit_rot': 'anthracnose_fruit_rot',
-                'blossom_blight': 'blossom_blight',
-                'gray_mold': 'gray_mold',
-                'leaf_spot': 'leaf_spot',
-                'powdery_mildew_leaf': 'powdery_mildew_leaf',
-                'powdery_mildew_fruit': 'powdery_mildew_fruit',
-                'healthy': 'healthy',
+                # Kaggle class names use spaces
+                'angular leafspot': 'angular_leafspot',
+                'anthracnose fruit rot': 'anthracnose_fruit_rot',
+                'blossom blight': 'blossom_blight',
+                'gray mold': 'gray_mold',
+                'leaf spot': 'leaf_spot',
+                'powdery mildew fruit': 'powdery_mildew_fruit',
+                'powdery mildew leaf': 'powdery_mildew_leaf',
+                # Note: Kaggle dataset has no healthy class
             },
             'roboflow1': {
                 'Angular Leafspot': 'angular_leafspot',
