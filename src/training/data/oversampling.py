@@ -185,13 +185,22 @@ class OversamplingStrategy:
         # Copy non-oversampled splits
         for split in ["train", "val", "test"]:
             if split not in splits and split in self.config:
-                src_split_path = self.dataset_path / self.config[split]
+                split_rel_path = self.config[split]
+                src_split_path = self.dataset_path / split_rel_path
 
-                if src_split_path.exists():
+                # Determine source structure
+                # Handle both "split/images" and "split" paths in YAML
+                if split_rel_path.endswith('/images'):
+                    # YAML has "split/images", so parent is the split dir
+                    src_base = src_split_path.parent
+                else:
+                    src_base = src_split_path
+
+                if src_base.exists():
                     dst_split_path = self.output_dir / split
                     if not dst_split_path.exists():
                         print(f"Copying {split} split without oversampling...")
-                        shutil.copytree(src_split_path, dst_split_path)
+                        shutil.copytree(src_base, dst_split_path)
 
         # Create new dataset.yaml
         new_config = self.config.copy()
