@@ -1,0 +1,48 @@
+# Docker Compose for Training (Optional)
+# This is an optional configuration for running training in Docker
+# By default, training is run locally on the host machine
+
+version: '3.8'
+
+services:
+  # YOLO Training Service
+  yolo_training:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.base
+    container_name: strawberry_training
+    # Enable shared memory for multiprocessing dataloader workers
+    ipc: host
+    shm_size: 8gb
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount data directories
+      - ./data:/root/strawberry-disease/data
+      - ./models:/root/strawberry-disease/models
+      - ./runs:/root/strawberry-disease/runs
+      - ./logs:/root/strawberry-disease/logs
+      # Mount source code
+      - ./src:/root/strawberry-disease/src:ro
+      - ./scripts:/root/strawberry-disease/scripts:ro
+    working_dir: /root/strawberry-disease
+    # Uncomment below for GPU support (requires NVIDIA Docker)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    command: >
+      python scripts/train_model.py
+      --data-yaml data/processed/final_oversampled/dataset.yaml
+      --preset balanced_oversampled
+      --model-size l
+      --device cpu
+    restart: "no"
+
+networks:
+  default:
+    driver: bridge
