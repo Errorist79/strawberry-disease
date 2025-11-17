@@ -255,6 +255,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Check if --batch was explicitly provided on command line
+    import sys
+    batch_explicitly_set = '--batch' in sys.argv
+
     # Determine dataset YAML path
     if args.data_yaml:
         dataset_yaml = args.data_yaml
@@ -317,7 +321,7 @@ def main():
 
         # Override batch size if explicitly specified on command line
         # This is critical for multi-GPU training where AutoBatch (batch=-1) is not supported
-        if args.batch != 32:  # 32 is the default value
+        if batch_explicitly_set:
             print(f"⚙️  Overriding preset batch_size ({training_config.batch_size}) with --batch {args.batch}")
             training_config.batch_size = args.batch
         elif training_config.batch_size == -1 and ',' in str(args.device):
