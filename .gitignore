@@ -53,7 +53,7 @@ data/images/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/images/.gitkeep
-
+runs/detect/*
 # Models
 models/weights/*
 !models/weights/.gitkeep
