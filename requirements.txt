@@ -35,6 +35,8 @@ prometheus-client>=0.19.0
 # Training Enhancements
 # ensemble-boxes>=1.0.9  # Optional: For advanced ensemble methods (WBF, NMS, NMW)
 tensorboard>=2.15.0  # For training visualization
+kaggle>=1.6.0  # For PlantVillage YOLO dataset download
+roboflow>=1.1.0  # For Roboflow dataset download
 
 # Development
 pytest>=7.4.3

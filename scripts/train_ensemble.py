@@ -121,6 +121,11 @@ def main():
         default=Path("data/processed/oversampled"),
         help="Output directory for oversampled dataset",
     )
+    parser.add_argument(
+        "--num-classes",
+        type=int,
+        help="Number of classes (auto-detected from dataset if not specified)",
+    )
 
     args = parser.parse_args()
 
@@ -141,6 +146,8 @@ def main():
     print(f"Image size: {args.imgsz}")
     print(f"Device: {args.device}")
     print(f"Parallel: {args.parallel}")
+    if args.num_classes:
+        print(f"Classes: {args.num_classes}")
     print(f"{'='*70}\n")
 
     # Validate dataset
