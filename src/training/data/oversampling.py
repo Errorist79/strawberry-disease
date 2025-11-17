@@ -58,41 +58,61 @@ class OversamplingStrategy:
 
     def _init_augmentations(self):
         """Initialize augmentation pipelines for creating varied copies."""
+        # Bbox parameters with clipping to handle edge cases
+        bbox_params = A.BboxParams(
+            format='yolo',
+            label_fields=['class_labels'],
+            min_area=0.0,
+            min_visibility=0.3,  # Keep bbox if at least 30% visible
+            clip=True  # Clip bboxes to valid range
+        )
+
         # Different augmentation presets for variety
         self.augmentation_presets = [
-            # Preset 1: Horizontal flip + slight rotation
+            # Preset 1: Horizontal flip + slight rotation (safe)
             A.Compose([
                 A.HorizontalFlip(p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+                A.Affine(
+                    scale=(0.95, 1.05),
+                    translate_percent=(-0.05, 0.05),
+                    rotate=(-15, 15),
+                    shear=(-5, 5),
+                    p=0.5
+                ),
+            ], bbox_params=bbox_params),
 
-            # Preset 2: Brightness/Contrast
+            # Preset 2: Brightness/Contrast (no geometric changes)
             A.Compose([
                 A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),
                 A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=10, p=0.5),
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+            ], bbox_params=bbox_params),
 
             # Preset 3: Rotation + blur
             A.Compose([
-                A.Rotate(limit=20, p=0.7),
+                A.Rotate(limit=15, p=0.6, border_mode=0),  # Reduced rotation
                 A.OneOf([
                     A.MotionBlur(blur_limit=3, p=1.0),
                     A.GaussianBlur(blur_limit=3, p=1.0),
                 ], p=0.3),
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+            ], bbox_params=bbox_params),
 
-            # Preset 4: Color jitter + noise
+            # Preset 4: Color jitter + noise (no geometric changes)
             A.Compose([
                 A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
-                A.GaussNoise(var_limit=(10.0, 30.0), p=0.3),
+                A.GaussNoise(std_limit=(5.0, 20.0), p=0.3),  # Fixed: use std_limit
                 A.VerticalFlip(p=0.3),
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+            ], bbox_params=bbox_params),
 
-            # Preset 5: Geometric + lighting
+            # Preset 5: Geometric + lighting (safer parameters)
             A.Compose([
-                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=25, p=0.6),
-                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.6),
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+                A.Affine(
+                    scale=(0.9, 1.1),
+                    translate_percent=(-0.1, 0.1),
+                    rotate=(-20, 20),
+                    p=0.5
+                ),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+            ], bbox_params=bbox_params),
         ]
 
     def _apply_augmentation(self, image: np.ndarray, bboxes: List, class_labels: List, preset_idx: int) -> tuple:
@@ -121,10 +141,17 @@ class OversamplingStrategy:
 
         try:
             augmented = preset(image=image, bboxes=bboxes, class_labels=class_labels)
+
+            # Check if we still have bounding boxes after augmentation
+            if not augmented['bboxes']:
+                # All bboxes were clipped out - use original
+                return image, bboxes, class_labels
+
             return augmented['image'], augmented['bboxes'], augmented['class_labels']
         except Exception as e:
-            # If augmentation fails, return original
-            print(f"Warning: Augmentation failed: {e}. Using original image.")
+            # If augmentation fails, return original (silent for common errors)
+            if "Expected" not in str(e):  # Only print unexpected errors
+                print(f"Warning: Unexpected augmentation error: {e}")
             return image, bboxes, class_labels
 
     def oversample_split(
@@ -178,6 +205,7 @@ class OversamplingStrategy:
         # Now, find images containing target classes and create copies
         print(f"Oversampling underrepresented classes...")
         oversample_stats = {class_name: 0 for class_name in self.oversample_config}
+        augmentation_stats = {'succeeded': 0, 'fallback': 0, 'total': 0}
 
         for img_file in image_files:
             label_file = src_labels_dir / (img_file.stem + ".txt")
@@ -246,6 +274,13 @@ class OversamplingStrategy:
                             image.copy(), bboxes.copy(), class_labels.copy(), copy_idx
                         )
 
+                        # Track augmentation success
+                        augmentation_stats['total'] += 1
+                        if aug_bboxes == bboxes:  # Check if fallback was used
+                            augmentation_stats['fallback'] += 1
+                        else:
+                            augmentation_stats['succeeded'] += 1
+
                         # Save augmented image
                         aug_image_bgr = cv2.cvtColor(aug_image, cv2.COLOR_RGB2BGR)
                         cv2.imwrite(str(copy_img_path), aug_image_bgr)
@@ -271,6 +306,15 @@ class OversamplingStrategy:
                 f"  {class_name}: {count} additional copies "
                 f"(target multiplier: {multiplier}x)"
             )
+
+        # Print augmentation statistics if enabled
+        if vary_augmentation and augmentation_stats['total'] > 0:
+            print(f"\nAugmentation statistics:")
+            print(f"  Total copies created: {augmentation_stats['total']}")
+            print(f"  Successfully augmented: {augmentation_stats['succeeded']} "
+                  f"({100*augmentation_stats['succeeded']/augmentation_stats['total']:.1f}%)")
+            print(f"  Used original (fallback): {augmentation_stats['fallback']} "
+                  f"({100*augmentation_stats['fallback']/augmentation_stats['total']:.1f}%)")
 
         return dst_split_path
 
