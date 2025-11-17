@@ -130,6 +130,9 @@ class YOLOTrainer:
         train_args["cache"] = self.data_config.cache
         train_args["workers"] = self.data_config.workers
 
+        # Enable TensorBoard logging
+        train_args["plots"] = True  # Enable training plots
+
         # Apply augmentation if provided
         if self.augmentation_config:
             train_args = apply_augmentation(train_args, self.augmentation_config)
