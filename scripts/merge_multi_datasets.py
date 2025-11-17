@@ -269,9 +269,39 @@ class MultiDatasetMerger:
             remapped_lines = []
             for line in lines:
                 parts = line.strip().split()
-                # Only accept bounding box format (class x y w h = exactly 5 values)
-                # Filter out segmentation polygons (>5 values) for detection task
-                if len(parts) != 5:
+
+                # Handle both bounding box and segmentation polygon formats
+                if len(parts) < 5:
+                    # Invalid format, skip
+                    continue
+                elif len(parts) == 5:
+                    # Bounding box format: class x_center y_center width height
+                    old_class_id = int(parts[0])
+                    bbox_parts = parts[1:]
+                elif len(parts) > 5:
+                    # Segmentation polygon format: class x1 y1 x2 y2 x3 y3 ...
+                    # Convert polygon to bounding box by finding min/max x,y
+                    old_class_id = int(parts[0])
+
+                    # Extract polygon coordinates (pairs of x,y)
+                    coords = [float(x) for x in parts[1:]]
+                    x_coords = [coords[i] for i in range(0, len(coords), 2)]
+                    y_coords = [coords[i] for i in range(1, len(coords), 2)]
+
+                    # Calculate bounding box
+                    x_min = min(x_coords)
+                    x_max = max(x_coords)
+                    y_min = min(y_coords)
+                    y_max = max(y_coords)
+
+                    # Convert to YOLO format (center x, center y, width, height)
+                    x_center = (x_min + x_max) / 2
+                    y_center = (y_min + y_max) / 2
+                    width = x_max - x_min
+                    height = y_max - y_min
+
+                    bbox_parts = [f"{x_center:.6f}", f"{y_center:.6f}", f"{width:.6f}", f"{height:.6f}"]
+                else:
                     continue
 
                 old_class_id = int(parts[0])
@@ -288,8 +318,9 @@ class MultiDatasetMerger:
 
                     if new_class_name in self.class_mapping:
                         new_class_id = self.class_mapping[new_class_name]
-                        parts[0] = str(new_class_id)
-                        remapped_lines.append(' '.join(parts) + '\n')
+                        # Create bounding box line with remapped class
+                        bbox_line = f"{new_class_id} {' '.join(bbox_parts)}"
+                        remapped_lines.append(bbox_line + '\n')
 
                         # Update stats
                         self.stats[output_split][new_class_name] += 1
