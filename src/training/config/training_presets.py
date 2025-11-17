@@ -215,6 +215,70 @@ class TrainingPresets:
             description=f"Ensemble member: {model_size} with {augmentation_level} augmentation",
         )
 
+    @staticmethod
+    def balanced_oversampled(
+        dataset_yaml: str,
+        model_size: str = "l",
+        device: str = "0",
+        class_weights: Optional[Dict[str, float]] = None,
+    ) -> PresetConfig:
+        """
+        Optimized configuration for oversampled dataset with augmentation.
+
+        This preset is designed to work with datasets oversampled using the
+        new augmentation-based oversampling strategy (target_balance=0.65).
+
+        Uses moderate augmentation during training since the dataset copies
+        already have augmentation applied, combined with class weights to
+        handle remaining imbalance.
+
+        Recommended class_weights for strawberry dataset after oversampling:
+        {
+            'healthy_flower': 8.0,     # Very underrepresented even after 5x
+            'healthy_leaf': 4.0,       # Underrepresented after 5x
+            'healthy_fruit': 6.0,      # Underrepresented after 5x
+            'anthracnose_fruit_rot': 2.0,  # Moderate after 3x
+        }
+
+        Args:
+            dataset_yaml: Path to oversampled dataset YAML
+            model_size: Model size (n, s, m, l, x)
+            device: Device to use
+            class_weights: Optional class weights. If None, uses recommended defaults.
+        """
+        # Default class weights optimized for oversampled dataset
+        if class_weights is None:
+            class_weights = {
+                "healthy_flower": 8.0,
+                "healthy_leaf": 4.0,
+                "healthy_fruit": 6.0,
+                "anthracnose_fruit_rot": 2.0,
+            }
+
+        return PresetConfig(
+            model=ModelConfig(model_size=model_size, input_size=640),
+            data=DataConfig(
+                dataset_yaml=dataset_yaml,
+                class_weights=class_weights,
+                cache="disk",
+                workers=8,
+            ),
+            training=TrainingConfig(
+                epochs=200,
+                batch_size=-1,
+                device=device,
+                patience=30,
+                lr0=0.01,
+                lrf=0.01,
+                weight_decay=0.001,  # Moderate regularization
+                warmup_epochs=5,
+                dropout=0.3,
+                close_mosaic=15,  # Disable mosaic earlier to see real augmentation
+            ),
+            augmentation=StandardAugmentation(),  # Moderate - dataset already augmented
+            description="Optimized for augmentation-based oversampled dataset with class weights",
+        )
+
 
 def get_preset(
     preset_name: str,
@@ -245,6 +309,7 @@ def get_preset(
         "anti_overfitting": TrainingPresets.anti_overfitting,
         "fine_tuning": TrainingPresets.fine_tuning,
         "ensemble": TrainingPresets.ensemble_member,
+        "balanced_oversampled": TrainingPresets.balanced_oversampled,
     }
 
     if preset_name not in presets:

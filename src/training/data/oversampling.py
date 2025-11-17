@@ -9,6 +9,9 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import albumentations as A
+import cv2
+import numpy as np
 import yaml
 
 
@@ -38,6 +41,7 @@ class OversamplingStrategy:
         self.seed = seed
 
         random.seed(seed)
+        np.random.seed(seed)
 
         # Load dataset config
         with open(self.dataset_yaml, "r") as f:
@@ -48,6 +52,80 @@ class OversamplingStrategy:
 
         # Create class name to ID mapping
         self.class_to_id = {name: idx for idx, name in enumerate(self.class_names)}
+
+        # Initialize augmentation transforms
+        self._init_augmentations()
+
+    def _init_augmentations(self):
+        """Initialize augmentation pipelines for creating varied copies."""
+        # Different augmentation presets for variety
+        self.augmentation_presets = [
+            # Preset 1: Horizontal flip + slight rotation
+            A.Compose([
+                A.HorizontalFlip(p=0.5),
+                A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+
+            # Preset 2: Brightness/Contrast
+            A.Compose([
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),
+                A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=10, p=0.5),
+            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+
+            # Preset 3: Rotation + blur
+            A.Compose([
+                A.Rotate(limit=20, p=0.7),
+                A.OneOf([
+                    A.MotionBlur(blur_limit=3, p=1.0),
+                    A.GaussianBlur(blur_limit=3, p=1.0),
+                ], p=0.3),
+            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+
+            # Preset 4: Color jitter + noise
+            A.Compose([
+                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
+                A.GaussNoise(var_limit=(10.0, 30.0), p=0.3),
+                A.VerticalFlip(p=0.3),
+            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+
+            # Preset 5: Geometric + lighting
+            A.Compose([
+                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=25, p=0.6),
+                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.6),
+            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])),
+        ]
+
+    def _apply_augmentation(self, image: np.ndarray, bboxes: List, class_labels: List, preset_idx: int) -> tuple:
+        """
+        Apply augmentation to image and bounding boxes.
+
+        Args:
+            image: Input image (numpy array)
+            bboxes: List of bounding boxes in YOLO format [[x_center, y_center, width, height], ...]
+            class_labels: List of class IDs corresponding to bboxes
+            preset_idx: Index of augmentation preset to use
+
+        Returns:
+            Tuple of (augmented_image, augmented_bboxes, class_labels)
+        """
+        if not bboxes:
+            # No bounding boxes, just augment image
+            preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
+            # Remove bbox params for image-only augmentation
+            transform = A.Compose([t for t in preset.transforms])
+            augmented = transform(image=image)
+            return augmented['image'], [], []
+
+        # Apply augmentation with bboxes
+        preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
+
+        try:
+            augmented = preset(image=image, bboxes=bboxes, class_labels=class_labels)
+            return augmented['image'], augmented['bboxes'], augmented['class_labels']
+        except Exception as e:
+            # If augmentation fails, return original
+            print(f"Warning: Augmentation failed: {e}. Using original image.")
+            return image, bboxes, class_labels
 
     def oversample_split(
         self, split: str = "train", vary_augmentation: bool = True
@@ -132,6 +210,29 @@ class OversamplingStrategy:
                     self.oversample_config[cls] for cls in target_classes
                 )
 
+                # Load image once for augmentation
+                if vary_augmentation:
+                    image = cv2.imread(str(img_file))
+                    if image is None:
+                        print(f"Warning: Could not read image {img_file}, skipping augmentation")
+                        vary_augmentation_for_this_image = False
+                    else:
+                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                        vary_augmentation_for_this_image = True
+
+                        # Parse bounding boxes from label file
+                        bboxes = []
+                        class_labels = []
+                        for line in lines:
+                            parts = line.strip().split()
+                            if len(parts) >= 5:
+                                class_id = int(parts[0])
+                                x_center, y_center, width, height = map(float, parts[1:5])
+                                bboxes.append([x_center, y_center, width, height])
+                                class_labels.append(class_id)
+                else:
+                    vary_augmentation_for_this_image = False
+
                 # Create (multiplier - 1) additional copies (original already exists)
                 for copy_idx in range(1, max_multiplier):
                     # Create copy with suffix
@@ -139,9 +240,24 @@ class OversamplingStrategy:
                     copy_img_path = dst_images_dir / f"{copy_stem}{img_file.suffix}"
                     copy_label_path = dst_labels_dir / f"{copy_stem}.txt"
 
-                    # Copy image and label
-                    shutil.copy(img_file, copy_img_path)
-                    shutil.copy(label_file, copy_label_path)
+                    if vary_augmentation_for_this_image:
+                        # Apply augmentation
+                        aug_image, aug_bboxes, aug_class_labels = self._apply_augmentation(
+                            image.copy(), bboxes.copy(), class_labels.copy(), copy_idx
+                        )
+
+                        # Save augmented image
+                        aug_image_bgr = cv2.cvtColor(aug_image, cv2.COLOR_RGB2BGR)
+                        cv2.imwrite(str(copy_img_path), aug_image_bgr)
+
+                        # Save augmented labels
+                        with open(copy_label_path, 'w') as f:
+                            for class_id, bbox in zip(aug_class_labels, aug_bboxes):
+                                f.write(f"{class_id} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n")
+                    else:
+                        # Just copy without augmentation
+                        shutil.copy(img_file, copy_img_path)
+                        shutil.copy(label_file, copy_label_path)
 
                     # Update stats
                     for cls in target_classes:
@@ -217,8 +333,9 @@ class OversamplingStrategy:
 
 def calculate_dynamic_oversample_ratios(
     dataset_yaml: Path,
-    target_balance: float = 0.8,
+    target_balance: float = 0.65,
     max_multiplier: int = 5,
+    min_multiplier: int = 2,
 ) -> Dict[str, int]:
     """
     Calculate dynamic oversampling ratios based on class distribution.
@@ -229,7 +346,10 @@ def calculate_dynamic_oversample_ratios(
         dataset_yaml: Path to dataset YAML
         target_balance: Target balance ratio (0-1). Each class should have
                        at least target_balance * average instances
-        max_multiplier: Maximum multiplier to apply
+                       Default: 0.65 (more conservative to prevent overfitting)
+        max_multiplier: Maximum multiplier to apply (default: 5)
+        min_multiplier: Minimum multiplier to apply (default: 2)
+                       Classes requiring less than this won't be oversampled
 
     Returns:
         Dict mapping class names to multipliers
@@ -237,7 +357,7 @@ def calculate_dynamic_oversample_ratios(
     Example:
         >>> ratios = calculate_dynamic_oversample_ratios(
         ...     'data/merged/dataset.yaml',
-        ...     target_balance=0.8,
+        ...     target_balance=0.65,
         ...     max_multiplier=5
         ... )
         >>> # {'anthracnose_fruit_rot': 5, 'powdery_mildew_fruit': 4, ...}
@@ -271,13 +391,16 @@ def calculate_dynamic_oversample_ratios(
             required_multiplier = target_instances / count
             multiplier = min(int(required_multiplier) + 1, max_multiplier)
 
-            if multiplier > 1:
+            # Only apply if meets minimum threshold
+            if multiplier >= min_multiplier:
                 oversample_config[class_name] = multiplier
 
     print(f"\nDynamic Oversampling Ratios:")
     print(f"  Target balance: {target_balance}")
     print(f"  Average instances: {avg_instances:.0f}")
     print(f"  Target minimum: {target_instances:.0f}")
+    print(f"  Min multiplier: {min_multiplier}x")
+    print(f"  Max multiplier: {max_multiplier}x")
     print(f"\nCalculated multipliers:")
 
     for class_name, multiplier in sorted(
@@ -286,6 +409,9 @@ def calculate_dynamic_oversample_ratios(
         original_count = class_dist[class_name]
         new_count = original_count * multiplier
         print(f"  {class_name}: {multiplier}x ({original_count} → {new_count})")
+
+    if not oversample_config:
+        print("  No classes require oversampling with current parameters.")
 
     return oversample_config
 
@@ -297,8 +423,10 @@ def create_oversampled_dataset(
     splits: List[str] = None,
     seed: int = 42,
     dynamic: bool = False,
-    target_balance: float = 0.8,
+    target_balance: float = 0.65,
     max_multiplier: int = 5,
+    min_multiplier: int = 2,
+    vary_augmentation: bool = True,
 ) -> Path:
     """
     Create oversampled dataset (convenience function).
@@ -311,14 +439,16 @@ def create_oversampled_dataset(
         splits: Splits to oversample (default: ['train'])
         seed: Random seed
         dynamic: If True, calculate oversample ratios automatically
-        target_balance: For dynamic mode, target balance ratio (0-1)
-        max_multiplier: For dynamic mode, maximum multiplier
+        target_balance: For dynamic mode, target balance ratio (0-1). Default: 0.65
+        max_multiplier: For dynamic mode, maximum multiplier. Default: 5
+        min_multiplier: For dynamic mode, minimum multiplier. Default: 2
+        vary_augmentation: If True, apply different augmentations to each copy. Default: True
 
     Returns:
         Path to oversampled dataset.yaml
 
     Example:
-        >>> # Manual oversampling
+        >>> # Manual oversampling with augmentation
         >>> oversample_config = {
         ...     'anthracnose_fruit_rot': 3,
         ...     'powdery_mildew_fruit': 3,
@@ -326,16 +456,19 @@ def create_oversampled_dataset(
         >>> new_yaml = create_oversampled_dataset(
         ...     'data/raw/dataset.yaml',
         ...     oversample_config,
-        ...     'data/processed/oversampled'
+        ...     'data/processed/oversampled',
+        ...     vary_augmentation=True
         ... )
 
-        >>> # Dynamic oversampling
+        >>> # Dynamic oversampling (recommended)
         >>> new_yaml = create_oversampled_dataset(
         ...     'data/merged/dataset.yaml',
         ...     output_dir='data/processed/oversampled',
         ...     dynamic=True,
-        ...     target_balance=0.8,
-        ...     max_multiplier=5
+        ...     target_balance=0.65,
+        ...     max_multiplier=5,
+        ...     min_multiplier=2,
+        ...     vary_augmentation=True
         ... )
     """
     # Calculate dynamic ratios if requested
@@ -344,6 +477,7 @@ def create_oversampled_dataset(
             dataset_yaml=dataset_yaml,
             target_balance=target_balance,
             max_multiplier=max_multiplier,
+            min_multiplier=min_multiplier,
         )
 
         if not oversample_config:
@@ -371,4 +505,4 @@ def create_oversampled_dataset(
         seed=seed,
     )
 
-    return strategy.create_oversampled_dataset(splits=splits)
+    return strategy.create_oversampled_dataset(splits=splits, vary_augmentation=vary_augmentation)

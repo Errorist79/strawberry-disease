@@ -37,6 +37,7 @@ prometheus-client>=0.19.0
 tensorboard>=2.15.0  # For training visualization
 kaggle>=1.6.0  # For PlantVillage YOLO dataset download
 roboflow>=1.1.0  # For Roboflow dataset download
+albumentations>=1.4.0  # For augmentation during oversampling
 
 # Development
 pytest>=7.4.3
