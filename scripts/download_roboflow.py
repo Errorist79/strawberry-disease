@@ -90,7 +90,20 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
 
         # Get latest version
         print("\nFetching latest dataset version...")
-        dataset = project.version(project.versions[0].version).download(
+
+        # Get all versions and pick the latest
+        versions_list = project.versions()
+        if not versions_list:
+            print("❌ No versions found for this dataset")
+            sys.exit(1)
+
+        # versions_list is sorted by version number, latest is first
+        latest_version = versions_list[0]['id']
+        print(f"Using version: {latest_version}")
+
+        # Download the dataset
+        version = project.version(latest_version)
+        dataset = version.download(
             format,
             location=str(output_dir)
         )
