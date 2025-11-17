@@ -2,11 +2,10 @@
 """
 Train YOLOv8 model on strawberry disease detection dataset.
 
-This script:
-1. Prepares the dataset in YOLO format
-2. Creates train/val splits if needed
-3. Trains YOLOv8 model
-4. Evaluates and saves the best model
+This script now uses the modular training framework while maintaining
+backward compatibility with the original interface.
+
+For ensemble training, use train_ensemble.py instead.
 """
 
 import argparse
@@ -16,6 +15,19 @@ from pathlib import Path
 
 import yaml
 from ultralytics import YOLO
+
+# Add src to path for modular training framework
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.training.config.augmentation_config import (
+    AggressiveAugmentation,
+    StandardAugmentation,
+    get_augmentation_preset,
+)
+from src.training.config.base_config import DataConfig, ModelConfig, TrainingConfig
+from src.training.config.training_presets import get_preset
+from src.training.data.dataset_loader import validate_dataset
+from src.training.models.yolo_trainer import YOLOTrainer
 
 
 def prepare_dataset(data_dir: Path, output_dir: Path) -> Path:
@@ -169,12 +181,19 @@ def evaluate_model(model_path: Path, dataset_yaml: Path) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train YOLOv8 for strawberry disease detection")
+    parser = argparse.ArgumentParser(
+        description="Train YOLOv8 for strawberry disease detection"
+    )
     parser.add_argument(
         "--data-dir",
         type=Path,
         default=Path("data/raw"),
-        help="Raw dataset directory",
+        help="Raw dataset directory (deprecated, use --data-yaml)",
+    )
+    parser.add_argument(
+        "--data-yaml",
+        type=Path,
+        help="Path to dataset.yaml (recommended)",
     )
     parser.add_argument(
         "--output-dir",
@@ -185,14 +204,18 @@ def main():
     parser.add_argument(
         "--model-size",
         type=str,
-        default="n",
+        default="l",
         choices=["n", "s", "m", "l", "x"],
         help="YOLOv8 model size (n=nano, s=small, m=medium, l=large, x=xlarge)",
     )
-    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
+    parser.add_argument(
+        "--epochs", type=int, default=200, help="Number of training epochs"
+    )
     parser.add_argument("--imgsz", type=int, default=640, help="Image size")
-    parser.add_argument("--batch", type=int, default=16, help="Batch size")
-    parser.add_argument("--device", type=str, default="cpu", help="Device (cpu, 0, 0,1,2,3)")
+    parser.add_argument("--batch", type=int, default=-1, help="Batch size (-1 for auto)")
+    parser.add_argument(
+        "--device", type=str, default="0", help="Device (cpu, 0, 0,1,2,3)"
+    )
     parser.add_argument(
         "--weights-output",
         type=Path,
@@ -200,32 +223,176 @@ def main():
         help="Output directory for final model weights",
     )
 
-    args = parser.parse_args()
-
-    # Prepare dataset
-    dataset_yaml = prepare_dataset(args.data_dir, args.output_dir)
-
-    # Train model
-    best_model_path = train_yolo(
-        dataset_yaml=dataset_yaml,
-        model_size=args.model_size,
-        epochs=args.epochs,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        device=args.device,
+    # New modular options
+    parser.add_argument(
+        "--preset",
+        type=str,
+        choices=["quick_test", "standard", "anti_overfitting", "fine_tuning"],
+        help="Use training preset (overrides other settings)",
+    )
+    parser.add_argument(
+        "--augmentation",
+        type=str,
+        choices=["minimal", "standard", "aggressive"],
+        default="aggressive",
+        help="Augmentation level (default: aggressive for anti-overfitting)",
+    )
+    parser.add_argument(
+        "--use-class-weights",
+        action="store_true",
+        help="Use class weights for imbalanced data",
+    )
+    parser.add_argument(
+        "--validate-data",
+        action="store_true",
+        help="Validate dataset before training",
+    )
+    parser.add_argument(
+        "--legacy-mode",
+        action="store_true",
+        help="Use legacy training (bypasses modular framework)",
     )
 
-    # Evaluate model
-    metrics = evaluate_model(best_model_path, dataset_yaml)
+    args = parser.parse_args()
+
+    # Determine dataset YAML path
+    if args.data_yaml:
+        dataset_yaml = args.data_yaml
+    else:
+        # Legacy mode: prepare dataset
+        dataset_yaml = prepare_dataset(args.data_dir, args.output_dir)
+
+    # Validate dataset if requested
+    if args.validate_data:
+        print("Validating dataset...")
+        if not validate_dataset(dataset_yaml, verbose=True):
+            print("❌ Dataset validation failed!")
+            sys.exit(1)
+        print("✅ Dataset is valid\n")
+
+    # Legacy mode: use old training function
+    if args.legacy_mode:
+        print("Using legacy training mode...\n")
+        best_model_path = train_yolo(
+            dataset_yaml=dataset_yaml,
+            model_size=args.model_size,
+            epochs=args.epochs,
+            imgsz=args.imgsz,
+            batch=args.batch,
+            device=args.device,
+        )
+
+        # Evaluate model
+        metrics = evaluate_model(best_model_path, dataset_yaml)
+
+        # Copy best model to final location
+        args.weights_output.mkdir(parents=True, exist_ok=True)
+        final_model_path = args.weights_output / "best.pt"
+        shutil.copy(best_model_path, final_model_path)
+
+        print(f"\n=== Training Complete ===")
+        print(f"Final model saved to: {final_model_path}")
+        print(f"Metrics: {metrics}")
+        return
+
+    # New modular mode
+    print("Using modular training framework...\n")
+
+    # Use preset if specified
+    if args.preset:
+        print(f"Loading preset: {args.preset}")
+        preset_config = get_preset(
+            preset_name=args.preset,
+            dataset_yaml=str(dataset_yaml),
+            model_size=args.model_size,
+            device=args.device,
+        )
+
+        model_config = preset_config.model
+        training_config = preset_config.training
+        augmentation_config = preset_config.augmentation
+        data_config = preset_config.data
+
+        print(f"Preset description: {preset_config.description}\n")
+
+    else:
+        # Build configuration from arguments
+        model_config = ModelConfig(
+            model_size=args.model_size,
+            input_size=args.imgsz,
+        )
+
+        # Setup class weights if requested
+        class_weights = None
+        if args.use_class_weights:
+            class_weights = {
+                "anthracnose_fruit_rot": 3.0,
+                "powdery_mildew_fruit": 3.0,
+                "blossom_blight": 2.0,
+            }
+
+        data_config = DataConfig(
+            dataset_yaml=dataset_yaml,
+            class_weights=class_weights,
+            cache="disk",
+            workers=8,
+        )
+
+        training_config = TrainingConfig(
+            epochs=args.epochs,
+            batch_size=args.batch,
+            device=args.device,
+            patience=30,
+            lr0=0.01,
+            lrf=0.001,
+            weight_decay=0.001,
+            warmup_epochs=5,
+            dropout=0.3,
+            label_smoothing=0.1,
+        )
+
+        augmentation_config = get_augmentation_preset(args.augmentation)
+
+    # Create trainer
+    trainer = YOLOTrainer(
+        model_config=model_config,
+        data_config=data_config,
+        training_config=training_config,
+        augmentation_config=augmentation_config,
+    )
+
+    # Train
+    training_results = trainer.train()
+
+    # Validate
+    val_results = trainer.validate(split="val")
+
+    # Try test set if available
+    try:
+        test_results = trainer.validate(split="test")
+        print("\nTest set results:")
+        print(f"  mAP50: {test_results['map50']:.4f}")
+        print(f"  mAP50-95: {test_results['map50_95']:.4f}")
+    except Exception as e:
+        print(f"Note: Test set validation skipped ({e})")
 
     # Copy best model to final location
     args.weights_output.mkdir(parents=True, exist_ok=True)
     final_model_path = args.weights_output / "best.pt"
-    shutil.copy(best_model_path, final_model_path)
+    shutil.copy(trainer.best_model_path, final_model_path)
 
-    print(f"\n=== Training Complete ===")
-    print(f"Final model saved to: {final_model_path}")
-    print(f"Metrics: {metrics}")
+    # Save configuration
+    config_path = args.weights_output / "training_config.json"
+    trainer.save_config(config_path)
+
+    print(f"\n{'='*70}")
+    print("✅ Training Complete!")
+    print(f"{'='*70}")
+    print(f"Final model: {final_model_path}")
+    print(f"Configuration: {config_path}")
+    print(f"Validation mAP50: {val_results['map50']:.4f}")
+    print(f"Validation mAP50-95: {val_results['map50_95']:.4f}")
+    print(f"{'='*70}\n")
 
 
 if __name__ == "__main__":
