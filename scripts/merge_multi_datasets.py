@@ -173,6 +173,12 @@ class MultiDatasetMerger:
                 continue
 
             images_rel = config[split]
+
+            # Handle relative paths that start with ../
+            # Roboflow uses ../train/images but actual path is train/images
+            if images_rel.startswith('../'):
+                images_rel = images_rel[3:]  # Remove ../
+
             images_in = dataset_path / images_rel
 
             # Find labels directory
