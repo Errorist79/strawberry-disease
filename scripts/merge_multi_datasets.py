@@ -240,9 +240,18 @@ class MultiDatasetMerger:
 
         # Process each label file
         for label_file in labels_dir.glob('*.txt'):
-            # Read labels
-            with open(label_file) as f:
-                lines = f.readlines()
+            # Read labels with error handling for different encodings
+            try:
+                with open(label_file, encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                # Try with latin-1 encoding as fallback
+                try:
+                    with open(label_file, encoding='latin-1') as f:
+                        lines = f.readlines()
+                except Exception as e:
+                    print(f"  ⚠️  Warning: Could not read {label_file.name}: {e}")
+                    continue
 
             # Remap classes
             remapped_lines = []
