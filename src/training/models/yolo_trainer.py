@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Union
 from ultralytics import YOLO
 
 from ..callbacks.class_weights import ClassWeightCallback
+from ..callbacks.tensorboard_callback import TensorBoardCallback
 from ..config.augmentation_config import AugmentationConfig
 from ..config.base_config import DataConfig, ModelConfig, TrainingConfig
 from ..data.augmentation import apply_augmentation
@@ -89,6 +90,12 @@ class YOLOTrainer:
         # Add resume flag
         if resume:
             train_args["resume"] = True
+
+        # Register TensorBoard callback (always enabled)
+        tensorboard_callback = TensorBoardCallback()
+        self.model.add_callback("on_train_start", tensorboard_callback.on_train_start)
+        self.model.add_callback("on_train_epoch_end", tensorboard_callback.on_train_epoch_end)
+        self.model.add_callback("on_train_end", tensorboard_callback.on_train_end)
 
         # Register class weight callback if class weights are provided
         if self.data_config.class_weights:
