@@ -141,7 +141,7 @@ def train_yolo(
         save_period=10,  # Save checkpoint every 10 epochs
         cache='disk',  # Use disk cache to save GPU memory
         exist_ok=True,
-        workers=8,  # More workers for CPU training
+        workers=16,  # More workers for CPU training
         amp=False,  # Disable AMP for CPU
     )
 
@@ -357,7 +357,7 @@ def main():
             dataset_yaml=dataset_yaml,
             class_weights=class_weights,
             cache="disk",
-            workers=8,
+            workers=16,
         )
 
         training_config = TrainingConfig(
