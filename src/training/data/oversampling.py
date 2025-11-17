@@ -56,6 +56,40 @@ class OversamplingStrategy:
         # Initialize augmentation transforms
         self._init_augmentations()
 
+    def _validate_bbox(self, bbox: List[float]) -> bool:
+        """
+        Validate YOLO format bounding box.
+
+        Args:
+            bbox: [x_center, y_center, width, height] in normalized coordinates
+
+        Returns:
+            True if valid, False otherwise
+        """
+        if len(bbox) < 4:
+            return False
+
+        x_center, y_center, width, height = bbox[:4]
+
+        # Check if values are in valid range [0, 1]
+        if not (0 <= x_center <= 1 and 0 <= y_center <= 1):
+            return False
+
+        # Check if width and height are positive and <= 1
+        if not (0 < width <= 1 and 0 < height <= 1):
+            return False
+
+        # Check if bbox is within image bounds
+        x_min = x_center - width / 2
+        x_max = x_center + width / 2
+        y_min = y_center - height / 2
+        y_max = y_center + height / 2
+
+        if not (0 <= x_min < x_max <= 1 and 0 <= y_min < y_max <= 1):
+            return False
+
+        return True
+
     def _init_augmentations(self):
         """Initialize augmentation pipelines for creating varied copies."""
         # Bbox parameters with clipping to handle edge cases
@@ -81,11 +115,11 @@ class OversamplingStrategy:
                 ),
             ], bbox_params=bbox_params),
 
-            # Preset 2: Brightness/Contrast (no geometric changes)
+            # Preset 2: Brightness/Contrast (no geometric changes, no bbox processing needed)
             A.Compose([
                 A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),
                 A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=10, p=0.5),
-            ], bbox_params=bbox_params),
+            ]),
 
             # Preset 3: Rotation + blur
             A.Compose([
@@ -96,10 +130,10 @@ class OversamplingStrategy:
                 ], p=0.3),
             ], bbox_params=bbox_params),
 
-            # Preset 4: Color jitter + noise (no geometric changes)
+            # Preset 4: Color jitter + noise + flip
             A.Compose([
                 A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
-                A.GaussNoise(std_limit=(5.0, 20.0), p=0.3),  # Fixed: use std_limit
+                A.GaussNoise(std_range=(0.1, 0.3), per_channel=True, p=0.3),
                 A.VerticalFlip(p=0.3),
             ], bbox_params=bbox_params),
 
@@ -128,29 +162,33 @@ class OversamplingStrategy:
         Returns:
             Tuple of (augmented_image, augmented_bboxes, class_labels)
         """
+        preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
+
         if not bboxes:
             # No bounding boxes, just augment image
-            preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
-            # Remove bbox params for image-only augmentation
-            transform = A.Compose([t for t in preset.transforms])
-            augmented = transform(image=image)
+            augmented = preset(image=image)
             return augmented['image'], [], []
 
         # Apply augmentation with bboxes
-        preset = self.augmentation_presets[preset_idx % len(self.augmentation_presets)]
-
         try:
-            augmented = preset(image=image, bboxes=bboxes, class_labels=class_labels)
+            # Check if this preset processes bboxes
+            if hasattr(preset, 'processors') and preset.processors.get('bboxes'):
+                # Preset has bbox processing
+                augmented = preset(image=image, bboxes=bboxes, class_labels=class_labels)
 
-            # Check if we still have bounding boxes after augmentation
-            if not augmented['bboxes']:
-                # All bboxes were clipped out - use original
-                return image, bboxes, class_labels
+                # Check if we still have bounding boxes after augmentation
+                if not augmented.get('bboxes'):
+                    # All bboxes were clipped out - use original
+                    return image, bboxes, class_labels
 
-            return augmented['image'], augmented['bboxes'], augmented['class_labels']
+                return augmented['image'], augmented['bboxes'], augmented['class_labels']
+            else:
+                # Color-only preset, no bbox processing - just augment image
+                augmented = preset(image=image)
+                return augmented['image'], bboxes, class_labels
         except Exception as e:
-            # If augmentation fails, return original (silent for common errors)
-            if "Expected" not in str(e):  # Only print unexpected errors
+            # If augmentation fails, return original (silent for common bbox errors)
+            if "Expected" not in str(e) and "x_max" not in str(e):
                 print(f"Warning: Unexpected augmentation error: {e}")
             return image, bboxes, class_labels
 
@@ -248,16 +286,28 @@ class OversamplingStrategy:
                         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                         vary_augmentation_for_this_image = True
 
-                        # Parse bounding boxes from label file
+                        # Parse and validate bounding boxes from label file
                         bboxes = []
                         class_labels = []
+                        invalid_bbox_count = 0
+
                         for line in lines:
                             parts = line.strip().split()
                             if len(parts) >= 5:
                                 class_id = int(parts[0])
                                 x_center, y_center, width, height = map(float, parts[1:5])
-                                bboxes.append([x_center, y_center, width, height])
-                                class_labels.append(class_id)
+                                bbox = [x_center, y_center, width, height]
+
+                                # Validate bbox before adding
+                                if self._validate_bbox(bbox):
+                                    bboxes.append(bbox)
+                                    class_labels.append(class_id)
+                                else:
+                                    invalid_bbox_count += 1
+
+                        # Warn if invalid bboxes were found
+                        if invalid_bbox_count > 0:
+                            print(f"  Skipped {invalid_bbox_count} invalid bbox(es) in {img_file.name}")
                 else:
                     vary_augmentation_for_this_image = False
 
