@@ -53,8 +53,9 @@ def main():
         "--augmentation",
         type=str,
         nargs="+",
-        default=["aggressive", "standard", "standard"],
-        help="Augmentation levels for each model (aggressive, standard)",
+        default=["standard", "standard", "standard"],
+        help="Augmentation levels for each model (aggressive, standard). "
+             "Default is 'standard' for oversampled datasets (copies already augmented).",
     )
 
     # Training arguments
@@ -178,14 +179,18 @@ def main():
         print(f"✅ Oversampled dataset created: {dataset_yaml}\n")
 
     # Setup class weights if requested
+    # Use balanced_oversampled preset defaults (optimized for oversampled datasets)
     class_weights = None
     if args.use_class_weights:
         class_weights = {
-            "anthracnose_fruit_rot": 3.0,
+            "healthy_flower": 6.0,  # Very underrepresented even after 5x
+            "healthy_leaf": 4.0,  # Underrepresented after 5x
+            "healthy_fruit": 6.0,  # Underrepresented after 5x
+            "anthracnose_fruit_rot": 2.0,  # Moderate after oversampling
             "powdery_mildew_fruit": 3.0,
             "blossom_blight": 2.0,
         }
-        print(f"Using class weights: {class_weights}\n")
+        print(f"Using class weights (balanced_oversampled preset): {class_weights}\n")
 
     # Create data config
     data_config = DataConfig(
@@ -204,17 +209,18 @@ def main():
             input_size=args.imgsz,
         )
 
-        # Training config
+        # Training config (optimized for oversampled datasets)
         training_cfg = TrainingConfig(
             epochs=args.epochs,
             batch_size=args.batch,
             device=args.device,
             patience=30,
             lr0=0.01,
-            lrf=0.001,  # Lower final LR for better convergence
-            weight_decay=0.001,
+            lrf=0.01,  # Moderate final LR (balanced_oversampled preset)
+            weight_decay=0.001,  # Moderate regularization
             warmup_epochs=5,
             dropout=0.3,
+            close_mosaic=15,  # Disable mosaic earlier to see real augmentation
             project=str(args.output_dir),
         )
 

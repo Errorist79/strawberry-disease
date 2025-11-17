@@ -248,7 +248,9 @@ class MultiDatasetMerger:
             remapped_lines = []
             for line in lines:
                 parts = line.strip().split()
-                if len(parts) < 5:
+                # Only accept bounding box format (class x y w h = exactly 5 values)
+                # Filter out segmentation polygons (>5 values) for detection task
+                if len(parts) != 5:
                     continue
 
                 old_class_id = int(parts[0])

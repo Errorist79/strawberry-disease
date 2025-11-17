@@ -258,7 +258,9 @@ class OversamplingStrategy:
 
             for line in lines:
                 parts = line.strip().split()
-                if len(parts) >= 5:
+                # Only accept bounding box format (class x y w h = exactly 5 values)
+                # Filter out segmentation polygons (>5 values) for detection task
+                if len(parts) == 5:
                     class_id = int(parts[0])
                     if 0 <= class_id < len(self.class_names):
                         class_name = self.class_names[class_id]
@@ -290,7 +292,9 @@ class OversamplingStrategy:
 
                         for line in lines:
                             parts = line.strip().split()
-                            if len(parts) >= 5:
+                            # Only accept bounding box format (class x y w h = exactly 5 values)
+                            # Filter out segmentation polygons (>5 values) for detection task
+                            if len(parts) == 5:
                                 class_id = int(parts[0])
                                 x_center, y_center, width, height = map(float, parts[1:5])
                                 bbox = [x_center, y_center, width, height]
