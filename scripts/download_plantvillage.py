@@ -165,55 +165,35 @@ def filter_strawberry_classes(plantvillage_dir: Path, output_dir: Path) -> Path:
     # Process each split
     stats = {'train': 0, 'valid': 0, 'test': 0}
 
-    for split in ['train', 'valid', 'test']:
-        split_key = split
-        if split not in config and split == 'valid':
-            # Try 'val' as alternative
-            split_key = 'val'
+    # Check if config has train/val/test splits
+    has_splits = any(key in config for key in ['train', 'val', 'valid', 'test'])
 
-        if split_key not in config:
-            continue
+    if not has_splits:
+        # PlantVillage case: all images in single directory, we'll split them ourselves
+        print("\nNo train/val/test splits found in config - processing all images and splitting...")
+        images_in = dataset_base / 'images'
+        labels_in = dataset_base / 'labels'
 
-        # Get paths - handle both relative and absolute paths
-        images_rel = config[split_key]
-        if isinstance(images_rel, str):
-            images_in = base_path / images_rel if not Path(images_rel).is_absolute() else Path(images_rel)
-        else:
-            images_in = base_path / images_rel
+        if not images_in.exists() or not labels_in.exists():
+            print(f"❌ Images or labels directory not found!")
+            print(f"  Images: {images_in} (exists: {images_in.exists()})")
+            print(f"  Labels: {labels_in} (exists: {labels_in.exists()})")
+            sys.exit(1)
 
-        # PlantVillage structure: Dataset/images/ and Dataset/labels/
-        # If images path includes 'images', labels should be sibling directory
-        if 'images' in str(images_in):
-            labels_in = Path(str(images_in).replace('images', 'labels'))
-        else:
-            # Direct approach for PlantVillage: images/ and labels/ are siblings
-            labels_in = dataset_base / 'labels' / split
+        # Process all labels and split 70/15/15 for train/valid/test
+        all_strawberry_files = []
 
-        # Try multiple label locations
-        if not labels_in.exists():
-            labels_in = images_in.parent.parent / 'labels' / Path(images_rel).name
-
-        if not labels_in.exists() and 'images' in images_rel:
-            labels_rel = images_rel.replace('images', 'labels')
-            labels_in = base_path / labels_rel
-
-        if not images_in.exists():
-            print(f"  Warning: {split} images not found at {images_in}")
-            continue
-
-        if not labels_in.exists():
-            print(f"  Warning: {split} labels not found at {labels_in}")
-            print(f"  Tried: {labels_in}")
-            continue
-
-        print(f"\nProcessing {split}...")
-        print(f"  Images: {images_in}")
-        print(f"  Labels: {labels_in}")
-
-        # Process each label file
+        print(f"\nScanning labels in: {labels_in}")
         for label_file in labels_in.glob('*.txt'):
-            with open(label_file) as f:
-                lines = f.readlines()
+            try:
+                with open(label_file, encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                try:
+                    with open(label_file, encoding='latin-1') as f:
+                        lines = f.readlines()
+                except:
+                    continue
 
             # Check if contains strawberry classes
             has_strawberry = False
@@ -227,42 +207,155 @@ def filter_strawberry_classes(plantvillage_dir: Path, output_dir: Path) -> Path:
                 class_id = int(parts[0])
                 if class_id in strawberry_classes:
                     has_strawberry = True
-
-                    # Remap class ID to new index (0, 1, 2...)
+                    # Remap class ID
                     new_class_id = list(strawberry_classes.keys()).index(class_id)
                     parts[0] = str(new_class_id)
                     filtered_lines.append(' '.join(parts) + '\n')
 
-            # Skip if no strawberry classes
-            if not has_strawberry:
+            if has_strawberry:
+                # Find corresponding image
+                img_name = label_file.stem
+                img_file = None
+                for ext in ['.jpg', '.jpeg', '.png', '.JPG']:
+                    candidate = images_in / f"{img_name}{ext}"
+                    if candidate.exists():
+                        img_file = candidate
+                        break
+
+                if img_file:
+                    all_strawberry_files.append((img_file, label_file.name, filtered_lines))
+
+        print(f"Found {len(all_strawberry_files)} strawberry images")
+
+        # Split 70/15/15
+        import random
+        random.seed(42)  # For reproducibility
+        random.shuffle(all_strawberry_files)
+
+        n = len(all_strawberry_files)
+        train_split = int(0.7 * n)
+        valid_split = int(0.85 * n)
+
+        splits = {
+            'train': all_strawberry_files[:train_split],
+            'valid': all_strawberry_files[train_split:valid_split],
+            'test': all_strawberry_files[valid_split:]
+        }
+
+        # Copy files to splits
+        for split_name, files in splits.items():
+            print(f"\nProcessing {split_name}...")
+            for img_file, label_name, filtered_lines in files:
+                out_img = output_dir / split_name / 'images' / img_file.name
+                out_label = output_dir / split_name / 'labels' / label_name
+
+                shutil.copy(img_file, out_img)
+                with open(out_label, 'w') as f:
+                    f.writelines(filtered_lines)
+
+                stats[split_name] += 1
+            print(f"  ✅ Copied {stats[split_name]} images")
+
+    else:
+        # Original logic for datasets with explicit splits
+        for split in ['train', 'valid', 'test']:
+            split_key = split
+            if split not in config and split == 'valid':
+                # Try 'val' as alternative
+                split_key = 'val'
+
+            if split_key not in config:
                 continue
 
-            # Find corresponding image
-            img_name = label_file.stem
-            img_file = None
+            # Get paths - handle both relative and absolute paths
+            images_rel = config[split_key]
+            if isinstance(images_rel, str):
+                images_in = base_path / images_rel if not Path(images_rel).is_absolute() else Path(images_rel)
+            else:
+                images_in = base_path / images_rel
 
-            for ext in ['.jpg', '.jpeg', '.png', '.JPG']:
-                candidate = images_in / f"{img_name}{ext}"
-                if candidate.exists():
-                    img_file = candidate
-                    break
+            # PlantVillage structure: Dataset/images/ and Dataset/labels/
+            # If images path includes 'images', labels should be sibling directory
+            if 'images' in str(images_in):
+                labels_in = Path(str(images_in).replace('images', 'labels'))
+            else:
+                # Direct approach for PlantVillage: images/ and labels/ are siblings
+                labels_in = dataset_base / 'labels' / split
 
-            if not img_file:
-                print(f"  Warning: Image not found for {label_file.name}")
+            # Try multiple label locations
+            if not labels_in.exists():
+                labels_in = images_in.parent.parent / 'labels' / Path(images_rel).name
+
+            if not labels_in.exists() and 'images' in images_rel:
+                labels_rel = images_rel.replace('images', 'labels')
+                labels_in = base_path / labels_rel
+
+            if not images_in.exists():
+                print(f"  Warning: {split} images not found at {images_in}")
                 continue
 
-            # Copy files
-            out_img = output_dir / split / 'images' / img_file.name
-            out_label = output_dir / split / 'labels' / label_file.name
+            if not labels_in.exists():
+                print(f"  Warning: {split} labels not found at {labels_in}")
+                print(f"  Tried: {labels_in}")
+                continue
 
-            shutil.copy(img_file, out_img)
+            print(f"\nProcessing {split}...")
+            print(f"  Images: {images_in}")
+            print(f"  Labels: {labels_in}")
 
-            with open(out_label, 'w') as f:
-                f.writelines(filtered_lines)
+            # Process each label file
+            for label_file in labels_in.glob('*.txt'):
+                with open(label_file) as f:
+                    lines = f.readlines()
 
-            stats[split] += 1
+                # Check if contains strawberry classes
+                has_strawberry = False
+                filtered_lines = []
 
-        print(f"  ✅ Filtered {stats[split]} images")
+                for line in lines:
+                    parts = line.strip().split()
+                    if len(parts) < 5:
+                        continue
+
+                    class_id = int(parts[0])
+                    if class_id in strawberry_classes:
+                        has_strawberry = True
+
+                        # Remap class ID to new index (0, 1, 2...)
+                        new_class_id = list(strawberry_classes.keys()).index(class_id)
+                        parts[0] = str(new_class_id)
+                        filtered_lines.append(' '.join(parts) + '\n')
+
+                # Skip if no strawberry classes
+                if not has_strawberry:
+                    continue
+
+                # Find corresponding image
+                img_name = label_file.stem
+                img_file = None
+
+                for ext in ['.jpg', '.jpeg', '.png', '.JPG']:
+                    candidate = images_in / f"{img_name}{ext}"
+                    if candidate.exists():
+                        img_file = candidate
+                        break
+
+                if not img_file:
+                    print(f"  Warning: Image not found for {label_file.name}")
+                    continue
+
+                # Copy files
+                out_img = output_dir / split / 'images' / img_file.name
+                out_label = output_dir / split / 'labels' / label_file.name
+
+                shutil.copy(img_file, out_img)
+
+                with open(out_label, 'w') as f:
+                    f.writelines(filtered_lines)
+
+                stats[split] += 1
+
+            print(f"  ✅ Filtered {stats[split]} images")
 
     # Create new data.yaml
     new_config = {
