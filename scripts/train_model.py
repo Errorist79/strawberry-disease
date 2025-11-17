@@ -212,7 +212,7 @@ def main():
         "--epochs", type=int, default=200, help="Number of training epochs"
     )
     parser.add_argument("--imgsz", type=int, default=640, help="Image size")
-    parser.add_argument("--batch", type=int, default=-1, help="Batch size (-1 for auto)")
+    parser.add_argument("--batch", type=int, default=32, help="Batch size (-1 for auto)")
     parser.add_argument(
         "--device", type=str, default="cpu", help="Device (cpu, 0, 0,1,2,3) - default: cpu for compatibility"
     )
