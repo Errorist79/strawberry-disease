@@ -93,13 +93,42 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
 
         # Most Roboflow datasets use version 1 as the published/stable version
         # The version() method takes an integer
-        dataset = project.version(1).download(
-            format,
-            location=str(output_dir)
-        )
+        # Note: Roboflow downloads to location/project_name by default
+        version_obj = project.version(1)
+
+        print(f"Downloading to: {output_dir}")
+        dataset = version_obj.download(format)
+
+        # Dataset object contains the actual download location
+        print(f"\nDataset download info:")
+        print(f"  Type: {type(dataset)}")
+        if hasattr(dataset, 'location'):
+            print(f"  Location: {dataset.location}")
+            actual_location = Path(dataset.location)
+        else:
+            print(f"  Dataset object: {dataset}")
+            # Default Roboflow behavior: downloads to ./project-name-version
+            actual_location = Path.cwd() / f"{dataset_name}-1"
+
+        # If downloaded to a different location, move to output_dir
+        if actual_location.exists() and actual_location != output_dir:
+            print(f"\nMoving dataset from {actual_location} to {output_dir}")
+            import shutil
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+            shutil.move(str(actual_location), str(output_dir))
 
         print(f"\n✅ Download complete!")
         print(f"Dataset saved to: {output_dir}")
+
+        # Verify files exist
+        if output_dir.exists():
+            files = list(output_dir.iterdir())
+            print(f"Files in directory: {len(files)}")
+            if files:
+                print(f"Sample files: {[f.name for f in files[:5]]}")
+        else:
+            print(f"⚠️  Warning: Output directory not found: {output_dir}")
 
         return output_dir
 
