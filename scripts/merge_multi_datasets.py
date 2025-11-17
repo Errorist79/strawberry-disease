@@ -49,6 +49,11 @@ class MultiDatasetMerger:
         self.datasets = []
         self.class_mapping = self._create_class_mapping()
         self.stats = defaultdict(lambda: defaultdict(int))
+        self.skipped_files = {
+            'binary': [],
+            'mac_resource_fork': [],
+            'parse_error': []
+        }
 
     def _create_class_mapping(self):
         """Create global class mapping based on strategy."""
@@ -237,6 +242,45 @@ class MultiDatasetMerger:
 
         return labels_dir  # Return best guess
 
+    def _is_binary_file(self, file_path: Path) -> bool:
+        """
+        Check if a file contains binary data.
+
+        Args:
+            file_path: Path to the file to check
+
+        Returns:
+            True if file appears to be binary, False otherwise
+        """
+        try:
+            # Read first 512 bytes to check for binary content
+            with open(file_path, 'rb') as f:
+                chunk = f.read(512)
+
+            # Check for null bytes (common in binary files)
+            if b'\x00' in chunk:
+                return True
+
+            # Try to decode as UTF-8
+            try:
+                chunk.decode('utf-8')
+                return False
+            except UnicodeDecodeError:
+                # Try latin-1 as fallback
+                try:
+                    chunk.decode('latin-1')
+                    # If it decodes but has unusual characters, check content
+                    text = chunk.decode('latin-1')
+                    # YOLO labels should only have digits, spaces, dots, and newlines
+                    allowed_chars = set('0123456789. \n\r\t-')
+                    if any(c not in allowed_chars for c in text[:100]):
+                        return True
+                    return False
+                except:
+                    return True
+        except Exception:
+            return True
+
     def _process_split(
         self,
         dataset_name: str,
@@ -252,6 +296,17 @@ class MultiDatasetMerger:
 
         # Process each label file
         for label_file in labels_dir.glob('*.txt'):
+            # Skip Mac OS resource fork files
+            if label_file.name.startswith('._'):
+                self.skipped_files['mac_resource_fork'].append(str(label_file))
+                continue
+
+            # Check for binary files before processing
+            if self._is_binary_file(label_file):
+                self.skipped_files['binary'].append(str(label_file))
+                print(f"  ⚠️  Warning: Skipping binary file: {label_file.name}")
+                continue
+
             # Read labels with error handling for different encodings
             try:
                 with open(label_file, encoding='utf-8') as f:
@@ -268,43 +323,50 @@ class MultiDatasetMerger:
             # Remap classes
             remapped_lines = []
             for line in lines:
-                parts = line.strip().split()
+                try:
+                    parts = line.strip().split()
 
-                # Handle both bounding box and segmentation polygon formats
-                if len(parts) < 5:
-                    # Invalid format, skip
-                    continue
-                elif len(parts) == 5:
-                    # Bounding box format: class x_center y_center width height
+                    # Handle both bounding box and segmentation polygon formats
+                    if len(parts) < 5:
+                        # Invalid format, skip
+                        continue
+                    elif len(parts) == 5:
+                        # Bounding box format: class x_center y_center width height
+                        old_class_id = int(parts[0])
+                        bbox_parts = parts[1:]
+                    elif len(parts) > 5:
+                        # Segmentation polygon format: class x1 y1 x2 y2 x3 y3 ...
+                        # Convert polygon to bounding box by finding min/max x,y
+                        old_class_id = int(parts[0])
+
+                        # Extract polygon coordinates (pairs of x,y)
+                        coords = [float(x) for x in parts[1:]]
+                        x_coords = [coords[i] for i in range(0, len(coords), 2)]
+                        y_coords = [coords[i] for i in range(1, len(coords), 2)]
+
+                        # Calculate bounding box
+                        x_min = min(x_coords)
+                        x_max = max(x_coords)
+                        y_min = min(y_coords)
+                        y_max = max(y_coords)
+
+                        # Convert to YOLO format (center x, center y, width, height)
+                        x_center = (x_min + x_max) / 2
+                        y_center = (y_min + y_max) / 2
+                        width = x_max - x_min
+                        height = y_max - y_min
+
+                        bbox_parts = [f"{x_center:.6f}", f"{y_center:.6f}", f"{width:.6f}", f"{height:.6f}"]
+                    else:
+                        continue
+
                     old_class_id = int(parts[0])
-                    bbox_parts = parts[1:]
-                elif len(parts) > 5:
-                    # Segmentation polygon format: class x1 y1 x2 y2 x3 y3 ...
-                    # Convert polygon to bounding box by finding min/max x,y
-                    old_class_id = int(parts[0])
-
-                    # Extract polygon coordinates (pairs of x,y)
-                    coords = [float(x) for x in parts[1:]]
-                    x_coords = [coords[i] for i in range(0, len(coords), 2)]
-                    y_coords = [coords[i] for i in range(1, len(coords), 2)]
-
-                    # Calculate bounding box
-                    x_min = min(x_coords)
-                    x_max = max(x_coords)
-                    y_min = min(y_coords)
-                    y_max = max(y_coords)
-
-                    # Convert to YOLO format (center x, center y, width, height)
-                    x_center = (x_min + x_max) / 2
-                    y_center = (y_min + y_max) / 2
-                    width = x_max - x_min
-                    height = y_max - y_min
-
-                    bbox_parts = [f"{x_center:.6f}", f"{y_center:.6f}", f"{width:.6f}", f"{height:.6f}"]
-                else:
+                except (ValueError, IndexError) as e:
+                    # Skip lines with parsing errors (corrupted data, invalid format, etc.)
+                    if label_file not in [f for f in self.skipped_files['parse_error']]:
+                        self.skipped_files['parse_error'].append(str(label_file))
+                        print(f"  ⚠️  Warning: Parse error in {label_file.name}: {e}")
                     continue
-
-                old_class_id = int(parts[0])
 
                 # Check bounds
                 if old_class_id >= len(class_names):
@@ -413,6 +475,37 @@ class MultiDatasetMerger:
             for class_id, class_name, count in class_items:
                 pct = 100 * count / total if total > 0 else 0
                 print(f"    [{class_id}] {class_name}: {count} ({pct:.1f}%)")
+
+        # Print skipped files summary
+        total_skipped = sum(len(files) for files in self.skipped_files.values())
+        if total_skipped > 0:
+            print(f"\n{'='*70}")
+            print("SKIPPED FILES SUMMARY")
+            print(f"{'='*70}")
+
+            if self.skipped_files['mac_resource_fork']:
+                print(f"\n⚠️  Mac OS Resource Fork Files: {len(self.skipped_files['mac_resource_fork'])}")
+                print("  These are Mac filesystem metadata files (._*) and were automatically skipped.")
+
+            if self.skipped_files['binary']:
+                print(f"\n⚠️  Binary/Corrupted Files: {len(self.skipped_files['binary'])}")
+                print("  These files contain binary data instead of text and were skipped:")
+                for f in self.skipped_files['binary'][:5]:  # Show first 5
+                    print(f"    - {f}")
+                if len(self.skipped_files['binary']) > 5:
+                    print(f"    ... and {len(self.skipped_files['binary']) - 5} more")
+
+            if self.skipped_files['parse_error']:
+                print(f"\n⚠️  Parse Error Files: {len(self.skipped_files['parse_error'])}")
+                print("  These files had invalid YOLO format and were skipped:")
+                for f in self.skipped_files['parse_error'][:5]:  # Show first 5
+                    print(f"    - {f}")
+                if len(self.skipped_files['parse_error']) > 5:
+                    print(f"    ... and {len(self.skipped_files['parse_error']) - 5} more")
+
+            print(f"\n💡 Recommendation:")
+            print(f"  Review and clean up these files in your source datasets.")
+            print(f"  Total files skipped: {total_skipped}")
 
 
 def create_default_class_mappings(strategy: str):
