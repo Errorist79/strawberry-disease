@@ -212,7 +212,7 @@ def main():
         "--epochs", type=int, default=200, help="Number of training epochs"
     )
     parser.add_argument("--imgsz", type=int, default=640, help="Image size")
-    parser.add_argument("--batch", type=int, default=32, help="Batch size (-1 for auto)")
+    parser.add_argument("--batch", type=int, default=32, help="Batch size (-1 for auto, but not supported with multi-GPU). For multi-GPU, use a multiple of GPU count (e.g., --batch 32 for 2 GPUs = 16 per GPU)")
     parser.add_argument(
         "--device", type=str, default="cpu", help="Device (cpu, 0, 0,1,2,3) - default: cpu for compatibility"
     )
@@ -228,7 +228,7 @@ def main():
         "--preset",
         type=str,
         choices=["quick_test", "standard", "anti_overfitting", "fine_tuning", "balanced_oversampled"],
-        help="Use training preset (overrides other settings)",
+        help="Use training preset (overrides other settings). For multi-GPU training, also specify --batch to override preset's AutoBatch setting.",
     )
     parser.add_argument(
         "--augmentation",
@@ -315,6 +315,24 @@ def main():
 
         print(f"Preset description: {preset_config.description}\n")
 
+        # Override batch size if explicitly specified on command line
+        # This is critical for multi-GPU training where AutoBatch (batch=-1) is not supported
+        if args.batch != 32:  # 32 is the default value
+            print(f"⚙️  Overriding preset batch_size ({training_config.batch_size}) with --batch {args.batch}")
+            training_config.batch_size = args.batch
+        elif training_config.batch_size == -1 and ',' in str(args.device):
+            # Preset uses AutoBatch but multi-GPU detected
+            gpu_count = len(str(args.device).split(','))
+            suggested_batch = 16 * gpu_count  # 16 per GPU is a good starting point
+            print(f"⚠️  WARNING: Preset uses AutoBatch (batch=-1) which is incompatible with multi-GPU training!")
+            print(f"   Detected {gpu_count} GPUs in device: {args.device}")
+            print(f"   Please specify --batch with a multiple of {gpu_count}")
+            print(f"   Suggested: --batch {suggested_batch} (or {suggested_batch//2}, {suggested_batch*2})")
+            print(f"\nTo fix, re-run with:")
+            print(f"  --batch {suggested_batch}")
+            import sys
+            sys.exit(1)
+
     else:
         # Build configuration from arguments
         model_config = ModelConfig(
@@ -351,6 +369,31 @@ def main():
         )
 
         augmentation_config = get_augmentation_preset(args.augmentation)
+
+    # Validate batch size for multi-GPU training
+    if ',' in str(training_config.device):
+        gpu_count = len(str(training_config.device).split(','))
+        batch_size = training_config.batch_size
+
+        if batch_size == -1:
+            # This shouldn't happen after our checks above, but just in case
+            print(f"❌ ERROR: AutoBatch (batch=-1) is not supported with multi-GPU training!")
+            print(f"   Please specify --batch with a multiple of {gpu_count}")
+            import sys
+            sys.exit(1)
+        elif batch_size % gpu_count != 0:
+            print(f"⚠️  WARNING: Batch size {batch_size} is not evenly divisible by GPU count {gpu_count}")
+            print(f"   This may cause uneven GPU utilization or errors during training.")
+            print(f"   Recommended batch sizes: {', '.join([str(gpu_count * i) for i in range(4, 12, 2)])}")
+            print(f"\n   Continue anyway? (y/N): ", end='')
+            response = input().strip().lower()
+            if response != 'y':
+                print("Training cancelled. Please adjust --batch to a multiple of GPU count.")
+                import sys
+                sys.exit(1)
+        else:
+            per_gpu_batch = batch_size // gpu_count
+            print(f"✅ Multi-GPU training: {gpu_count} GPUs, batch size {batch_size} ({per_gpu_batch} per GPU)\n")
 
     # Create trainer
     trainer = YOLOTrainer(
