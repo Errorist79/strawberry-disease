@@ -94,16 +94,40 @@ def filter_strawberry_classes(plantvillage_dir: Path, output_dir: Path) -> Path:
     print("Filtering Strawberry Classes")
     print(f"{'='*70}")
 
-    # Find data.yaml
-    yaml_path = plantvillage_dir / 'data.yaml'
-    if not yaml_path.exists():
-        # Try alternative locations
-        for candidate in plantvillage_dir.rglob('data.yaml'):
+    # Navigate to actual dataset directory (handle nested structure)
+    # Structure: PlantVillage_for_object_detection/Dataset/
+    if (plantvillage_dir / 'PlantVillage_for_object_detection' / 'Dataset').exists():
+        dataset_base = plantvillage_dir / 'PlantVillage_for_object_detection' / 'Dataset'
+        print(f"Found nested structure, using: {dataset_base}")
+    else:
+        dataset_base = plantvillage_dir
+
+    # Find classes.yaml or data.yaml
+    yaml_path = None
+    for yaml_name in ['classes.yaml', 'data.yaml']:
+        candidate = dataset_base / yaml_name
+        if candidate.exists():
             yaml_path = candidate
+            print(f"Found config: {yaml_path}")
             break
 
-    if not yaml_path.exists():
-        print(f"❌ data.yaml not found in {plantvillage_dir}")
+    # Try searching recursively
+    if not yaml_path:
+        for yaml_name in ['classes.yaml', 'data.yaml']:
+            for candidate in plantvillage_dir.rglob(yaml_name):
+                yaml_path = candidate
+                dataset_base = yaml_path.parent
+                print(f"Found config at: {yaml_path}")
+                break
+            if yaml_path:
+                break
+
+    if not yaml_path:
+        print(f"❌ classes.yaml or data.yaml not found in {plantvillage_dir}")
+        print(f"Directory contents:")
+        for item in plantvillage_dir.rglob('*'):
+            if item.is_file() and item.suffix in ['.yaml', '.yml']:
+                print(f"  {item}")
         sys.exit(1)
 
     # Load dataset config
@@ -136,23 +160,42 @@ def filter_strawberry_classes(plantvillage_dir: Path, output_dir: Path) -> Path:
         (output_dir / split / 'labels').mkdir(parents=True, exist_ok=True)
 
     # Base path for dataset
-    base_path = Path(config.get('path', yaml_path.parent))
+    base_path = Path(config.get('path', dataset_base))
 
     # Process each split
     stats = {'train': 0, 'valid': 0, 'test': 0}
 
     for split in ['train', 'valid', 'test']:
-        if split not in config:
+        split_key = split
+        if split not in config and split == 'valid':
+            # Try 'val' as alternative
+            split_key = 'val'
+
+        if split_key not in config:
             continue
 
-        # Get paths
-        images_rel = config[split]
-        images_in = base_path / images_rel
+        # Get paths - handle both relative and absolute paths
+        images_rel = config[split_key]
+        if isinstance(images_rel, str):
+            images_in = base_path / images_rel if not Path(images_rel).is_absolute() else Path(images_rel)
+        else:
+            images_in = base_path / images_rel
 
-        # Try to find labels directory
-        labels_in = images_in.parent.parent / 'labels' / Path(images_rel).name
-        if not labels_in.exists():
+        # PlantVillage structure: Dataset/images/ and Dataset/labels/
+        # If images path includes 'images', labels should be sibling directory
+        if 'images' in str(images_in):
             labels_in = Path(str(images_in).replace('images', 'labels'))
+        else:
+            # Direct approach for PlantVillage: images/ and labels/ are siblings
+            labels_in = dataset_base / 'labels' / split
+
+        # Try multiple label locations
+        if not labels_in.exists():
+            labels_in = images_in.parent.parent / 'labels' / Path(images_rel).name
+
+        if not labels_in.exists() and 'images' in images_rel:
+            labels_rel = images_rel.replace('images', 'labels')
+            labels_in = base_path / labels_rel
 
         if not images_in.exists():
             print(f"  Warning: {split} images not found at {images_in}")
@@ -160,6 +203,7 @@ def filter_strawberry_classes(plantvillage_dir: Path, output_dir: Path) -> Path:
 
         if not labels_in.exists():
             print(f"  Warning: {split} labels not found at {labels_in}")
+            print(f"  Tried: {labels_in}")
             continue
 
         print(f"\nProcessing {split}...")
