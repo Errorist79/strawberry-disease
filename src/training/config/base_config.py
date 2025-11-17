@@ -88,7 +88,6 @@ class TrainingConfig:
 
     # Regularization
     dropout: float = 0.3  # Added dropout
-    label_smoothing: float = 0.1  # Label smoothing for better generalization
 
     # Early stopping and checkpointing
     patience: int = 30  # Early stopping patience
@@ -117,11 +116,6 @@ class TrainingConfig:
         if not 0 <= self.dropout <= 1:
             raise ValueError(f"dropout must be between 0 and 1, got {self.dropout}")
 
-        if not 0 <= self.label_smoothing < 1:
-            raise ValueError(
-                f"label_smoothing must be between 0 and 1, got {self.label_smoothing}"
-            )
-
     def to_yolo_args(self) -> Dict:
         """Convert to YOLO training arguments."""
         return {
@@ -137,7 +131,6 @@ class TrainingConfig:
             "warmup_momentum": self.warmup_momentum,
             "warmup_bias_lr": self.warmup_bias_lr,
             "dropout": self.dropout,
-            "label_smoothing": self.label_smoothing,
             "patience": self.patience,
             "save_period": self.save_period,
             "amp": self.amp,

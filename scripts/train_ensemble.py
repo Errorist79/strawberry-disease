@@ -215,7 +215,6 @@ def main():
             weight_decay=0.001,
             warmup_epochs=5,
             dropout=0.3,
-            label_smoothing=0.1,
             project=str(args.output_dir),
         )
 

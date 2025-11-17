@@ -74,7 +74,6 @@ class TrainingPresets:
                 weight_decay=0.001,
                 warmup_epochs=5,
                 dropout=0.3,
-                label_smoothing=0.1,
             ),
             augmentation=StandardAugmentation(),
             description="Standard training with moderate augmentation",
@@ -126,7 +125,6 @@ class TrainingPresets:
                 weight_decay=0.001,  # Stronger regularization
                 warmup_epochs=5,
                 dropout=0.3,  # High dropout
-                label_smoothing=0.1,
                 close_mosaic=10,  # Disable mosaic in last 10 epochs
             ),
             augmentation=AggressiveAugmentation(),
@@ -212,7 +210,6 @@ class TrainingPresets:
                 weight_decay=0.001,
                 warmup_epochs=5,
                 dropout=0.3,
-                label_smoothing=0.1,
             ),
             augmentation=augmentation,
             description=f"Ensemble member: {model_size} with {augmentation_level} augmentation",

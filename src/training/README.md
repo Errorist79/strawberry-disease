@@ -47,7 +47,6 @@ training_config = TrainingConfig(
     batch_size=-1,  # Auto
     patience=30,
     dropout=0.3,
-    label_smoothing=0.1,
 )
 ```
 
@@ -247,7 +246,6 @@ class TrainingConfig:
 
     # Regularization
     dropout: float = 0.3
-    label_smoothing: float = 0.1
 
     # Early stopping
     patience: int = 30

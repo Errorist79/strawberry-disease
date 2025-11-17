@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Union
 
 from ultralytics import YOLO
 
+from ..callbacks.class_weights import ClassWeightCallback
 from ..config.augmentation_config import AugmentationConfig
 from ..config.base_config import DataConfig, ModelConfig, TrainingConfig
 from ..data.augmentation import apply_augmentation
@@ -89,7 +90,15 @@ class YOLOTrainer:
         if resume:
             train_args["resume"] = True
 
-        # Register callbacks
+        # Register class weight callback if class weights are provided
+        if self.data_config.class_weights:
+            class_weight_callback = ClassWeightCallback(
+                class_weights=self.data_config.class_weights,
+                dataset_yaml=str(self.data_config.dataset_yaml),
+            )
+            self.model.add_callback("on_train_start", class_weight_callback.on_train_start)
+
+        # Register other callbacks
         for callback in self.callbacks:
             self.model.add_callback(callback)
 
@@ -125,13 +134,9 @@ class YOLOTrainer:
         if self.augmentation_config:
             train_args = apply_augmentation(train_args, self.augmentation_config)
 
-        # Add class weights if provided
-        # Note: YOLO doesn't support class weights directly in train(),
-        # but we can log them for reference
+        # Note: Class weights will be applied via callback if provided
         if self.data_config.class_weights:
             print(f"\nClass weights: {self.data_config.class_weights}")
-            # Store in training args for custom callbacks to use
-            train_args["_class_weights"] = self.data_config.class_weights
 
         return train_args
 
