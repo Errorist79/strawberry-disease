@@ -71,9 +71,7 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
             print("2. Set environment variable: export ROBOFLOW_API_KEY=your_key")
             sys.exit(1)
 
-        from roboflow import Roboflow
-
-        rf = Roboflow(api_key=api_key)
+        rf = roboflow.Roboflow(api_key=api_key)
 
         # Parse dataset ID
         parts = dataset_id.split('/')
@@ -82,28 +80,24 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
             print("Expected format: workspace/dataset-name")
             sys.exit(1)
 
-        workspace_name, project_name = parts
+        workspace, dataset_name = parts
 
-        print(f"Accessing workspace: {workspace_name}")
-        print(f"Project: {project_name}")
+        print(f"Accessing workspace: {workspace}")
+        print(f"Dataset: {dataset_name}")
 
-        # For Universe datasets, use direct project access
-        # Format: "workspace-name/project-name"
-        full_project_id = f"{workspace_name}/{project_name}"
+        # Get project
+        project = rf.workspace(workspace).project(dataset_name)
 
-        print(f"\nAccessing project: {full_project_id}")
-        project = rf.project(full_project_id)
+        # Download latest version (version 1 is usually the latest/published version)
+        print("\nDownloading dataset (using latest version)...")
 
-        # Get the latest version (usually version 1)
-        print("Accessing dataset version 1...")
-        dataset_version = project.version(1)
+        # Most Roboflow datasets use version 1 as the published/stable version
+        # The version() method takes an integer
+        # Note: Roboflow downloads to location/project_name by default
+        version_obj = project.version(1)
 
-        print(f"Downloading dataset in {format} format...")
-        print(f"Target location: {output_dir}")
-
-        # Download the dataset
-        # The download method returns a Dataset object
-        dataset = dataset_version.download(format)
+        print(f"Downloading to: {output_dir}")
+        dataset = version_obj.download(format)
 
         # Dataset object contains the actual download location
         print(f"\nDataset download info:")
