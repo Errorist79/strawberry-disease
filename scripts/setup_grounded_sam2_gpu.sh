@@ -110,8 +110,23 @@ else
 
     cd ..
 
+    # Fix import namespace issue - create symlinks for both directions
+    echo "  - Fixing import namespace compatibility..."
+
+    # Create grounding_dino -> groundingdino symlink (for top-level imports)
+    if [ ! -L "/venv/main/lib/python3.12/site-packages/grounding_dino" ]; then
+        cd /venv/main/lib/python3.12/site-packages/
+        ln -sf groundingdino grounding_dino
+    fi
+
+    # Create groundingdino symlink inside grounding_dino (for nested imports like grounding_dino.groundingdino)
+    if [ ! -L "/venv/main/lib/python3.12/site-packages/grounding_dino/groundingdino" ]; then
+        cd /venv/main/lib/python3.12/site-packages/grounding_dino
+        ln -sf ../groundingdino groundingdino
+    fi
+
     # Verify installation
-    if python3 -c "import groundingdino" 2>/dev/null; then
+    if python3 -c "import groundingdino; from groundingdino.util.inference import load_model" 2>/dev/null; then
         echo "  ✓ Grounding DINO installation verified"
     else
         echo "  ✗ ERROR: Grounding DINO installation failed"
