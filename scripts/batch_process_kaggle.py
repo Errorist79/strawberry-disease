@@ -159,10 +159,10 @@ def main():
                         help="Grounded-SAM-2 repo directory")
     args = parser.parse_args()
 
-    # Setup paths
-    images_dir = Path(args.images_dir)
-    output_dir = Path(args.output_dir)
-    checkpoint_dir = Path(args.checkpoint_dir)
+    # Setup paths - convert to absolute paths before changing directory
+    images_dir = Path(args.images_dir).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    checkpoint_dir = Path(args.checkpoint_dir).resolve()
 
     # Create output directories
     output_dir.mkdir(parents=True, exist_ok=True)
