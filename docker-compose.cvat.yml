@@ -37,6 +37,7 @@ services:
       CVAT_SHARE_URL: 'Mounted from host'
       CVAT_ANALYTICS: 0
       NUMPROCS: 2
+      SMOKESCREEN_OPTS: ''
       no_proxy: elasticsearch,kibana,logstash,nuclio,opa,${no_proxy:-}
     volumes:
       - cvat_data:/home/django/data
