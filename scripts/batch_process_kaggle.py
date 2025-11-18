@@ -40,7 +40,7 @@ from tqdm import tqdm
 from torchvision.ops import box_convert
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from grounding_dino.groundingdino.util.inference import load_model, load_image, predict
+from groundingdino.util.inference import load_model, load_image, predict
 import argparse
 import time
 
@@ -48,7 +48,7 @@ import time
 TEXT_PROMPT = "strawberry leaf."  # Note: lowercase + dot
 SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
 SAM2_MODEL_CONFIG = "configs/sam2.1/sam2.1_hiera_l.yaml"
-GROUNDING_DINO_CONFIG = "grounding_dino/groundingdino/config/GroundingDINO_SwinT_OGC.py"
+GROUNDING_DINO_CONFIG = "grounding_dino/config/GroundingDINO_SwinT_OGC.py"
 GROUNDING_DINO_CHECKPOINT = "gdino_checkpoints/groundingdino_swint_ogc.pth"
 BOX_THRESHOLD = 0.30  # Lower threshold to catch more leaves
 TEXT_THRESHOLD = 0.25
