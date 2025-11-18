@@ -1,0 +1,26 @@
+{
+  "train": {
+    "images": 1095,
+    "labels": 1095,
+    "total_instances": 1110,
+    "healthy": 324,
+    "leaf_scorch": 786,
+    "invalid_bboxes": 86
+  },
+  "valid": {
+    "images": 235,
+    "labels": 235,
+    "total_instances": 240,
+    "healthy": 77,
+    "leaf_scorch": 163,
+    "invalid_bboxes": 18
+  },
+  "test": {
+    "images": 235,
+    "labels": 235,
+    "total_instances": 240,
+    "healthy": 55,
+    "leaf_scorch": 185,
+    "invalid_bboxes": 15
+  }
+}

@@ -62,6 +62,9 @@ models/weights/*
 # Docker
 docker-volumes/
 
+# CVAT
+data/external/plantvillage_healthy_reannotated/
+
 # OS
 .DS_Store
 Thumbs.db
