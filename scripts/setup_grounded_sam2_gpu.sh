@@ -49,7 +49,14 @@ SAM2_BUILD_CUDA=0 pip install -e ".[notebooks]" || echo "SAM2 installed (CUDA ex
 
 echo ""
 echo "4. Installing Grounding DINO..."
-pip install --no-build-isolation -e grounding_dino
+# Install Grounding DINO (remove --no-build-isolation for venv compatibility)
+pip install -e grounding_dino || {
+    echo "⚠️  Grounding DINO build failed, trying alternative method..."
+    cd grounding_dino
+    pip install -r requirements.txt
+    python setup.py build develop
+    cd ..
+}
 
 echo ""
 echo "5. Downloading model checkpoints..."
