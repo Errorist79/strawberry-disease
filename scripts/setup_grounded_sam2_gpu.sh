@@ -37,6 +37,11 @@ pip install --no-cache-dir \
 
 echo ""
 echo "3. Installing SAM 2..."
+# Navigate to Grounded-SAM-2 directory (clone if not exists)
+if [ ! -d "Grounded-SAM-2" ]; then
+    echo "  - Cloning Grounded-SAM-2 repo..."
+    git clone https://github.com/IDEA-Research/Grounded-SAM-2.git
+fi
 cd Grounded-SAM-2
 
 # Install SAM 2 (allow errors for CUDA extension, we can run without it)
