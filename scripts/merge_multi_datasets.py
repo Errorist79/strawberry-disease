@@ -2,25 +2,24 @@
 """
 Multi-dataset merger for strawberry disease detection.
 
-Merges 4 different datasets into a single unified dataset:
-1. Kaggle Dataset (2,500 images)
+Merges multiple datasets into a single unified dataset:
+1. Kaggle Dataset (2,500 images) - optional
 2. Roboflow #1 (4,918 images)
 3. Roboflow #2 (2,757 images)
-4. PlantVillage Strawberry (1,565 images)
+4. healthy_merged (946 images) - PlantVillage + Kaggle tipburn healthy-only
 
 Supports two strategies:
-- granular: 11 classes (7 diseases + 3 healthy types + leaf_scorch)
-- simple: 8 classes (7 diseases + healthy + leaf_scorch)
+- granular: 10 classes (7 diseases + 3 healthy types)
+- simple: 8 classes (7 diseases + healthy)
 
 Note: Kaggle dataset has no healthy class, only disease classes.
 
-Usage:
+Usage (for fine-tuning):
     python scripts/merge_multi_datasets.py \
-        --kaggle data/processed/yolo_dataset/data.yaml \
         --roboflow1 data/external/roboflow_4918/data.yaml \
         --roboflow2 data/external/roboflow_2757/data.yaml \
-        --plantvillage data/external/plantvillage_strawberry/data.yaml \
-        --output data/processed/merged_4datasets \
+        --plantvillage data/external/healthy_merged/data.yaml \
+        --output data/processed/merged_for_finetune \
         --strategy granular
 """
 
@@ -58,7 +57,7 @@ class MultiDatasetMerger:
     def _create_class_mapping(self):
         """Create global class mapping based on strategy."""
         if self.strategy == 'granular':
-            # 11 classes: 7 diseases + 3 healthy types + leaf_scorch
+            # 10 classes: 7 diseases + 3 healthy types (leaf_scorch removed)
             # Note: Kaggle dataset has no healthy class
             return {
                 'angular_leafspot': 0,
@@ -71,10 +70,9 @@ class MultiDatasetMerger:
                 'healthy_leaf': 7,
                 'healthy_flower': 8,
                 'healthy_fruit': 9,
-                'leaf_scorch': 10,
             }
         else:  # simple
-            # 8 classes: 7 diseases + healthy + leaf_scorch
+            # 8 classes: 7 diseases + healthy (leaf_scorch removed)
             # Note: Kaggle dataset has no healthy class
             return {
                 'angular_leafspot': 0,
@@ -84,8 +82,7 @@ class MultiDatasetMerger:
                 'leaf_spot': 4,
                 'powdery_mildew_leaf': 5,
                 'powdery_mildew_fruit': 6,
-                'healthy': 7,  # All healthy merged (from Roboflow #2 + PlantVillage)
-                'leaf_scorch': 8,
+                'healthy': 7,  # All healthy merged (from Roboflow #2 + healthy_merged)
             }
 
     def add_dataset(self, name: str, yaml_path: Path, class_map: dict, priority: int = 1):
@@ -546,7 +543,7 @@ def create_default_class_mappings(strategy: str):
             },
             'plantvillage': {
                 'Strawberry___healthy': 'healthy_leaf',
-                'Strawberry___Leaf_scorch': 'leaf_scorch',
+                # Note: Leaf_scorch removed - not used in fine-tuning
             },
         }
     else:  # simple
@@ -585,7 +582,7 @@ def create_default_class_mappings(strategy: str):
             },
             'plantvillage': {
                 'Strawberry___healthy': 'healthy',
-                'Strawberry___Leaf_scorch': 'leaf_scorch',
+                # Note: Leaf_scorch removed - not used in fine-tuning
             },
         }
 
