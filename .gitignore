@@ -50,6 +50,7 @@ logs/
 #data/raw/*
 data/processed/*
 data/images/*
+data/external
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/images/.gitkeep
