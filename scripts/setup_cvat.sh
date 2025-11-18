@@ -54,12 +54,26 @@ echo "  3. Start CVAT server, UI, and proxy"
 echo "  4. Mount PlantVillage dataset to /home/django/share/plantvillage"
 echo ""
 
-# Start CVAT
+# Start database and redis first
+echo "Starting database and redis..."
+docker compose -f docker-compose.cvat.yml up -d cvat_db cvat_redis
+
+echo "⏳ Waiting for database to be ready (10 seconds)..."
+sleep 10
+
+# Initialize database
+echo ""
+echo "Initializing CVAT database..."
+docker compose -f docker-compose.cvat.yml run --rm cvat init
+
+# Start remaining services
+echo ""
+echo "Starting CVAT server, UI, and proxy..."
 docker compose -f docker-compose.cvat.yml up -d
 
 echo ""
-echo "⏳ Waiting for services to be ready (30 seconds)..."
-sleep 30
+echo "⏳ Waiting for services to be ready (20 seconds)..."
+sleep 20
 
 # Check if all containers are running
 echo ""
