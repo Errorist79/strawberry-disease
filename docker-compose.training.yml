@@ -2,8 +2,6 @@
 # This is an optional configuration for running training in Docker
 # By default, training is run locally on the host machine
 
-version: '3.8'
-
 services:
   # YOLO Training Service
   yolo_training:
@@ -37,7 +35,7 @@ services:
     #           capabilities: [gpu]
     command: >
       python scripts/train_model.py
-      --data-yaml data/processed/final_oversampled/dataset.yaml
+      --data-yaml data/processed/final_oversampled/data.yaml
       --preset balanced_oversampled
       --model-size l
       --device cpu
