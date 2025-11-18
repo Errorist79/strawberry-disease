@@ -37,7 +37,7 @@ pip install --no-cache-dir \
 
 echo ""
 echo "3. Installing SAM 2..."
-cd /workspace/Grounded-SAM-2
+cd Grounded-SAM-2
 
 # Install SAM 2 (allow errors for CUDA extension, we can run without it)
 SAM2_BUILD_CUDA=0 pip install -e ".[notebooks]" || echo "SAM2 installed (CUDA extension may have failed, continuing...)"

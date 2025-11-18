@@ -151,11 +151,11 @@ def process_single_image(image_path, grounding_model, sam2_predictor, device, ou
 
 def main():
     parser = argparse.ArgumentParser(description="Batch process images with Grounded-SAM-2")
-    parser.add_argument("--images_dir", type=str, default="/workspace/kaggle_tipburn/train/images",
+    parser.add_argument("--images_dir", type=str, default="data/external/kaggle_tipburn/train/images",
                         help="Directory containing images")
-    parser.add_argument("--output_dir", type=str, default="/workspace/grounded_sam2_results",
+    parser.add_argument("--output_dir", type=str, default="grounded_sam2_results",
                         help="Output directory for results")
-    parser.add_argument("--checkpoint_dir", type=str, default="/workspace/Grounded-SAM-2",
+    parser.add_argument("--checkpoint_dir", type=str, default="Grounded-SAM-2",
                         help="Grounded-SAM-2 repo directory")
     args = parser.parse_args()
 
