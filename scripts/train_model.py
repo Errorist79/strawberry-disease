@@ -230,6 +230,12 @@ def main():
 
     # New modular options
     parser.add_argument(
+        "--name",
+        type=str,
+        default="strawberry_disease",
+        help="Experiment name for output directory (runs/detect/<name>). Use different names for fine-tuning to avoid overwriting checkpoint.",
+    )
+    parser.add_argument(
         "--preset",
         type=str,
         choices=["quick_test", "standard", "anti_overfitting", "fine_tuning", "balanced_oversampled"],
@@ -330,6 +336,9 @@ def main():
         augmentation_config = preset_config.augmentation
         data_config = preset_config.data
 
+        # Override training name if specified
+        training_config.name = args.name
+
         print(f"Preset description: {preset_config.description}\n")
 
         # Override batch size if explicitly specified on command line
@@ -381,6 +390,7 @@ def main():
             epochs=args.epochs,
             batch_size=args.batch,
             device=args.device,
+            name=args.name,
             patience=30,
             lr0=0.01,
             lrf=0.001,
