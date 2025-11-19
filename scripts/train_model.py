@@ -206,7 +206,12 @@ def main():
         type=str,
         default="l",
         choices=["n", "s", "m", "l", "x"],
-        help="YOLOv8 model size (n=nano, s=small, m=medium, l=large, x=xlarge)",
+        help="YOLOv8 model size (n=nano, s=small, m=medium, l=large, x=xlarge). Ignored if --checkpoint is specified.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="Path to custom checkpoint (.pt file) for fine-tuning. If specified, --model-size is ignored.",
     )
     parser.add_argument(
         "--epochs", type=int, default=200, help="Number of training epochs"
@@ -317,6 +322,11 @@ def main():
         augmentation_config = preset_config.augmentation
         data_config = preset_config.data
 
+        # Override with checkpoint if provided
+        if args.checkpoint:
+            print(f"🔧 Using custom checkpoint: {args.checkpoint}")
+            model_config.checkpoint_path = args.checkpoint
+
         print(f"Preset description: {preset_config.description}\n")
 
         # Override batch size if explicitly specified on command line
@@ -341,8 +351,12 @@ def main():
         # Build configuration from arguments
         model_config = ModelConfig(
             model_size=args.model_size,
+            checkpoint_path=args.checkpoint,
             input_size=args.imgsz,
         )
+
+        if args.checkpoint:
+            print(f"🔧 Using custom checkpoint: {args.checkpoint}\n")
 
         # Setup class weights if requested
         class_weights = None

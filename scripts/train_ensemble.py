@@ -47,7 +47,13 @@ def main():
         type=str,
         nargs="+",
         default=["l", "l", "m"],
-        help="Model sizes for ensemble (e.g., l l m)",
+        help="Model sizes for ensemble (e.g., l l m). Ignored if --checkpoints is specified.",
+    )
+    parser.add_argument(
+        "--checkpoints",
+        type=Path,
+        nargs="+",
+        help="Paths to custom checkpoints (.pt files) for fine-tuning ensemble. If specified, --models is ignored.",
     )
     parser.add_argument(
         "--augmentation",
@@ -130,10 +136,20 @@ def main():
 
     args = parser.parse_args()
 
+    # Determine model sources (checkpoints or sizes)
+    if args.checkpoints:
+        model_sources = args.checkpoints
+        use_checkpoints = True
+        print(f"\n🔧 Using custom checkpoints for ensemble fine-tuning")
+    else:
+        model_sources = args.models
+        use_checkpoints = False
+
     # Validate number of models matches augmentation configs
-    if len(args.models) != len(args.augmentation):
-        print("Error: Number of models must match number of augmentation configs")
-        print(f"  Models: {len(args.models)} ({args.models})")
+    if len(model_sources) != len(args.augmentation):
+        source_type = "checkpoints" if use_checkpoints else "models"
+        print(f"Error: Number of {source_type} must match number of augmentation configs")
+        print(f"  {source_type.capitalize()}: {len(model_sources)} ({model_sources})")
         print(f"  Augmentation: {len(args.augmentation)} ({args.augmentation})")
         sys.exit(1)
 
@@ -141,7 +157,10 @@ def main():
     print("Ensemble Training Configuration")
     print(f"{'='*70}")
     print(f"Dataset: {args.data_yaml}")
-    print(f"Models: {args.models}")
+    if use_checkpoints:
+        print(f"Checkpoints: {[str(c) for c in model_sources]}")
+    else:
+        print(f"Models: {model_sources}")
     print(f"Augmentation: {args.augmentation}")
     print(f"Epochs: {args.epochs}")
     print(f"Image size: {args.imgsz}")
@@ -202,12 +221,21 @@ def main():
 
     # Create model configurations
     model_configs = []
-    for model_size, aug_level in zip(args.models, args.augmentation):
+    for model_source, aug_level in zip(model_sources, args.augmentation):
         # Model config
-        model_cfg = ModelConfig(
-            model_size=model_size,
-            input_size=args.imgsz,
-        )
+        if use_checkpoints:
+            # Using checkpoint for fine-tuning
+            model_cfg = ModelConfig(
+                model_size="l",  # Size will be ignored when checkpoint is provided
+                checkpoint_path=model_source,
+                input_size=args.imgsz,
+            )
+        else:
+            # Using model size for training from scratch
+            model_cfg = ModelConfig(
+                model_size=model_source,
+                input_size=args.imgsz,
+            )
 
         # Training config (optimized for oversampled datasets)
         training_cfg = TrainingConfig(

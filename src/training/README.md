@@ -169,6 +169,52 @@ test_results = trainer.validate(split="test")
 trainer.export(format="onnx", output_path="model.onnx")
 ```
 
+**Fine-tuning from checkpoint:**
+
+```python
+from pathlib import Path
+from src.training.config.base_config import ModelConfig
+
+# Load existing checkpoint for fine-tuning
+model_config = ModelConfig(
+    model_size="l",  # Will be ignored, model architecture from checkpoint
+    checkpoint_path=Path("models/weights/best.pt"),
+    input_size=640,
+)
+
+trainer = YOLOTrainer(
+    model_config=model_config,
+    data_config=data_config,
+    training_config=training_config,
+    augmentation_config=aug_config,
+)
+
+# Continue training from checkpoint
+results = trainer.train()
+```
+
+**CLI usage with checkpoint:**
+
+```bash
+# Fine-tune from checkpoint using preset
+python scripts/train_model.py \
+  --data-yaml data/processed/balanced_healthy/data.yaml \
+  --checkpoint models/weights/best.pt \
+  --preset fine_tuning \
+  --epochs 50 \
+  --batch 32 \
+  --device 0
+
+# Without preset (custom configuration)
+python scripts/train_model.py \
+  --data-yaml data/processed/dataset/data.yaml \
+  --checkpoint models/weights/best.pt \
+  --epochs 100 \
+  --batch 64 \
+  --device 0 \
+  --use-class-weights
+```
+
 ### 7. Ensemble Training
 
 Train multiple models with different configurations:
@@ -199,6 +245,20 @@ ensemble_results = ensemble.validate_ensemble(split="test")
 predictions = ensemble.predict_ensemble("image.jpg")
 ```
 
+**Fine-tuning ensemble from checkpoints:**
+
+```bash
+# Fine-tune 3 existing models with different augmentation
+python scripts/train_ensemble.py \
+  --data-yaml data/processed/balanced_healthy/data.yaml \
+  --checkpoints models/weights/best.pt models/weights/model2.pt models/weights/model3.pt \
+  --augmentation aggressive standard standard \
+  --epochs 50 \
+  --batch 32 \
+  --device 0 \
+  --ensemble-name healthy_ensemble
+```
+
 ## Configuration Classes
 
 ### ModelConfig
@@ -206,8 +266,9 @@ predictions = ensemble.predict_ensemble("image.jpg")
 ```python
 @dataclass
 class ModelConfig:
-    model_size: str = "l"              # n, s, m, l, x
+    model_size: str = "l"                                    # n, s, m, l, x
     pretrained: bool = True
+    checkpoint_path: Optional[Path] = None                   # Custom checkpoint for fine-tuning
     input_size: int = 640
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45

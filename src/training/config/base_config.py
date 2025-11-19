@@ -15,6 +15,7 @@ class ModelConfig:
 
     model_size: str = "l"  # n, s, m, l, x
     pretrained: bool = True
+    checkpoint_path: Optional[Union[str, Path]] = None  # Path to custom checkpoint for fine-tuning
     input_size: int = 640
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45
@@ -37,9 +38,23 @@ class ModelConfig:
                 f"iou_threshold must be between 0 and 1, got {self.iou_threshold}"
             )
 
+        # Validate checkpoint path if provided
+        if self.checkpoint_path is not None:
+            self.checkpoint_path = Path(self.checkpoint_path)
+            if not self.checkpoint_path.exists():
+                raise FileNotFoundError(
+                    f"Checkpoint file not found: {self.checkpoint_path}"
+                )
+            if not str(self.checkpoint_path).endswith('.pt'):
+                raise ValueError(
+                    f"Checkpoint must be a .pt file, got {self.checkpoint_path}"
+                )
+
     @property
     def model_name(self) -> str:
         """Get full model name."""
+        if self.checkpoint_path:
+            return f"custom_checkpoint"
         return f"yolov8{self.model_size}"
 
 

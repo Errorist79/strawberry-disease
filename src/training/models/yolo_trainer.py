@@ -44,9 +44,16 @@ class YOLOTrainer:
         self.callbacks = callbacks or []
 
         # Initialize model
-        if model_config.pretrained:
+        # Priority: checkpoint_path > pretrained > from scratch
+        if model_config.checkpoint_path:
+            # Load from custom checkpoint for fine-tuning
+            model_path = str(model_config.checkpoint_path)
+            print(f"🔧 Loading checkpoint: {model_path}")
+        elif model_config.pretrained:
+            # Load YOLOv8 pretrained weights
             model_path = f"{model_config.model_name}.pt"
         else:
+            # Train from scratch (architecture only)
             model_path = f"{model_config.model_name}.yaml"
 
         self.model = YOLO(model_path)
