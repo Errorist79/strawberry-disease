@@ -134,18 +134,32 @@ class TrainingPresets:
     @staticmethod
     def fine_tuning(
         dataset_yaml: str,
-        pretrained_weights: str,
         model_size: str = "l",
         device: str = "0",
+        checkpoint_path: Optional[str] = None,
     ) -> PresetConfig:
         """
         Fine-tuning configuration.
 
         For fine-tuning a pre-trained model on new data.
         Uses lower learning rate and fewer epochs.
+
+        Args:
+            dataset_yaml: Path to dataset configuration
+            model_size: Model size (ignored if checkpoint_path provided)
+            device: Device to use for training
+            checkpoint_path: Optional path to checkpoint for fine-tuning
         """
+        description = "Fine-tuning preset with low learning rate"
+        if checkpoint_path:
+            description += f" (from checkpoint: {checkpoint_path})"
+
         return PresetConfig(
-            model=ModelConfig(model_size=model_size, input_size=640),
+            model=ModelConfig(
+                model_size=model_size,
+                input_size=640,
+                checkpoint_path=checkpoint_path,
+            ),
             data=DataConfig(dataset_yaml=dataset_yaml, cache="disk", workers=8),
             training=TrainingConfig(
                 epochs=50,
@@ -159,7 +173,7 @@ class TrainingPresets:
                 dropout=0.2,
             ),
             augmentation=StandardAugmentation(),
-            description=f"Fine-tuning from {pretrained_weights}",
+            description=description,
         )
 
     @staticmethod

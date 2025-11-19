@@ -310,22 +310,25 @@ def main():
     # Use preset if specified
     if args.preset:
         print(f"Loading preset: {args.preset}")
+
+        # Prepare preset arguments
+        preset_kwargs = {}
+        if args.checkpoint:
+            preset_kwargs['checkpoint_path'] = str(args.checkpoint)
+            print(f"🔧 Using custom checkpoint: {args.checkpoint}")
+
         preset_config = get_preset(
             preset_name=args.preset,
             dataset_yaml=str(dataset_yaml),
             model_size=args.model_size,
             device=args.device,
+            **preset_kwargs,
         )
 
         model_config = preset_config.model
         training_config = preset_config.training
         augmentation_config = preset_config.augmentation
         data_config = preset_config.data
-
-        # Override with checkpoint if provided
-        if args.checkpoint:
-            print(f"🔧 Using custom checkpoint: {args.checkpoint}")
-            model_config.checkpoint_path = args.checkpoint
 
         print(f"Preset description: {preset_config.description}\n")
 
