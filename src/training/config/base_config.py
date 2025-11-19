@@ -41,6 +41,11 @@ class ModelConfig:
         # Validate checkpoint path if provided
         if self.checkpoint_path is not None:
             self.checkpoint_path = Path(self.checkpoint_path)
+
+            # Convert to absolute path for multi-GPU (DDP) compatibility
+            if not self.checkpoint_path.is_absolute():
+                self.checkpoint_path = self.checkpoint_path.resolve()
+
             if not self.checkpoint_path.exists():
                 raise FileNotFoundError(
                     f"Checkpoint file not found: {self.checkpoint_path}"
@@ -49,8 +54,6 @@ class ModelConfig:
                 raise ValueError(
                     f"Checkpoint must be a .pt file, got {self.checkpoint_path}"
                 )
-            # Convert to absolute path for multi-GPU training (DDP compatibility)
-            self.checkpoint_path = self.checkpoint_path.resolve()
 
     @property
     def model_name(self) -> str:
