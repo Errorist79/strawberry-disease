@@ -49,6 +49,8 @@ class ModelConfig:
                 raise ValueError(
                     f"Checkpoint must be a .pt file, got {self.checkpoint_path}"
                 )
+            # Convert to absolute path for multi-GPU training (DDP compatibility)
+            self.checkpoint_path = self.checkpoint_path.resolve()
 
     @property
     def model_name(self) -> str:
