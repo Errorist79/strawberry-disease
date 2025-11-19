@@ -542,7 +542,7 @@ def create_default_class_mappings(strategy: str):
                 'Healthy Leaf': 'healthy_leaf',
             },
             'plantvillage': {
-                'Strawberry___healthy': 'healthy_leaf',
+                'healthy_leaf': 'healthy_leaf',
                 # Note: Leaf_scorch removed - not used in fine-tuning
             },
         }
@@ -581,7 +581,7 @@ def create_default_class_mappings(strategy: str):
                 'Healthy Leaf': 'healthy',
             },
             'plantvillage': {
-                'Strawberry___healthy': 'healthy',
+                'healthy_leaf': 'healthy',
                 # Note: Leaf_scorch removed - not used in fine-tuning
             },
         }
