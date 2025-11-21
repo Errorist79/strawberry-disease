@@ -139,6 +139,7 @@ class StrawberryDatasetCleaner:
             self.clip_pipeline = pipeline(
                 "zero-shot-image-classification",
                 model="openai/clip-vit-large-patch14",
+                use_fast=True,
             )
             print("✓ CLIP model loaded")
 
