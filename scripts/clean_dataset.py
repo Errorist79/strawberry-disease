@@ -278,15 +278,43 @@ class StrawberryDatasetCleaner:
             fd = fastdup.create(input_dir=str(temp_path), work_dir=str(work_dir))
             fd.run()
 
-            # Get outliers
-            outliers_df = fd.outliers()
-            if outliers_df is not None and len(outliers_df) > 0:
-                # Filter by threshold
-                outlier_files = set(
-                    outliers_df[outliers_df["outlier_score"] < self.fastdup_threshold]["filename"].tolist()
-                )
-                self.stats["fastdup_outliers"] = len(outlier_files)
-                return outlier_files
+            # Get outliers - API varies by version
+            try:
+                outliers_df = fd.outliers()
+                if outliers_df is not None and len(outliers_df) > 0:
+                    # Try different column names based on fastdup version
+                    score_col = None
+                    file_col = None
+
+                    # Check for score column
+                    for col in ["outlier_score", "distance", "score", "mean_distance"]:
+                        if col in outliers_df.columns:
+                            score_col = col
+                            break
+
+                    # Check for filename column
+                    for col in ["filename", "from", "filename_from", "path"]:
+                        if col in outliers_df.columns:
+                            file_col = col
+                            break
+
+                    if score_col and file_col:
+                        # Filter by threshold
+                        outlier_files = set(
+                            outliers_df[outliers_df[score_col] < self.fastdup_threshold][file_col].tolist()
+                        )
+                        self.stats["fastdup_outliers"] = len(outlier_files)
+                        return outlier_files
+                    else:
+                        # If no score column, just get all outliers
+                        print(f"  Fastdup columns: {list(outliers_df.columns)}")
+                        if file_col:
+                            outlier_files = set(outliers_df[file_col].tolist())
+                            self.stats["fastdup_outliers"] = len(outlier_files)
+                            return outlier_files
+            except Exception as e:
+                print(f"⚠️  Fastdup outlier detection failed: {e}")
+                print("  Continuing without fastdup filtering...")
 
         return set()
 
