@@ -134,12 +134,19 @@ class StrawberryDatasetCleaner:
     def _load_clip(self):
         """Load CLIP model lazily."""
         if self.clip_pipeline is None:
-            from transformers import pipeline
+            from transformers import pipeline, CLIPImageProcessor
             print("Loading CLIP model (openai/clip-vit-large-patch14)...")
+
+            # Use fast image processor explicitly
+            image_processor = CLIPImageProcessor.from_pretrained(
+                "openai/clip-vit-large-patch14",
+                use_fast=True,
+            )
+
             self.clip_pipeline = pipeline(
                 "zero-shot-image-classification",
                 model="openai/clip-vit-large-patch14",
-                use_fast=True,
+                image_processor=image_processor,
             )
             print("✓ CLIP model loaded")
 
