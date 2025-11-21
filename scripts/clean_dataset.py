@@ -293,16 +293,27 @@ class StrawberryDatasetCleaner:
                             break
 
                     # Check for filename column
-                    for col in ["filename", "from", "filename_from", "path"]:
+                    for col in ["filename_outlier", "filename", "from", "filename_from", "path"]:
                         if col in outliers_df.columns:
                             file_col = col
                             break
 
                     if score_col and file_col:
                         # Filter by threshold
-                        outlier_files = set(
-                            outliers_df[outliers_df[score_col] < self.fastdup_threshold][file_col].tolist()
-                        )
+                        # Note: For 'distance' column, HIGHER values = more different (outliers)
+                        # So we filter distance > threshold (e.g., > 0.5 means very different)
+                        if score_col == "distance":
+                            # Convert threshold: user provides 0.05 meaning "top 5% most different"
+                            # distance ranges 0-1, higher = more different
+                            distance_threshold = 1.0 - self.fastdup_threshold  # 0.95 for threshold=0.05
+                            outlier_files = set(
+                                outliers_df[outliers_df[score_col] > distance_threshold][file_col].tolist()
+                            )
+                        else:
+                            outlier_files = set(
+                                outliers_df[outliers_df[score_col] < self.fastdup_threshold][file_col].tolist()
+                            )
+                        print(f"  Found {len(outlier_files)} outliers (threshold: {self.fastdup_threshold})")
                         self.stats["fastdup_outliers"] = len(outlier_files)
                         return outlier_files
                     else:
