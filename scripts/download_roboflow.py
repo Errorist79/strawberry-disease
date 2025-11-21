@@ -186,6 +186,7 @@ def main():
         choices=[
             'strawberry-disease/strawberry-disease-detection-dataset',
             'research-proj/strawberry-diseases-detection',
+            'test-8ictq/strawberry_healthy-93tkm',
         ],
         help='Roboflow dataset ID'
     )
