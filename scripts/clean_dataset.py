@@ -369,6 +369,12 @@ class StrawberryDatasetCleaner:
         if not self.dry_run and self.output_dir:
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
+            # Copy data.yaml if exists
+            data_yaml_src = self.input_dir / "data.yaml"
+            if data_yaml_src.exists():
+                shutil.copy2(data_yaml_src, self.output_dir / "data.yaml")
+                print(f"✓ Copied data.yaml")
+
             print(f"\nCopying images to {self.output_dir}...")
             for rel_path, result in self.results.items():
                 if result["keep"]:
@@ -378,10 +384,20 @@ class StrawberryDatasetCleaner:
                     shutil.copy2(src, dst)
 
                     # Copy corresponding label file if exists
+                    # Check both same directory and labels/ directory structure
                     label_src = src.with_suffix(".txt")
                     if label_src.exists():
                         label_dst = dst.with_suffix(".txt")
                         shutil.copy2(label_src, label_dst)
+                    else:
+                        # Handle YOLO structure: images/ and labels/ folders
+                        # e.g., train/images/img.jpg -> train/labels/img.txt
+                        if "images" in src.parts:
+                            label_src_alt = Path(str(src).replace("/images/", "/labels/")).with_suffix(".txt")
+                            if label_src_alt.exists():
+                                label_dst_alt = Path(str(dst).replace("/images/", "/labels/")).with_suffix(".txt")
+                                label_dst_alt.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(label_src_alt, label_dst_alt)
 
                     self.stats["final"] += 1
         else:
