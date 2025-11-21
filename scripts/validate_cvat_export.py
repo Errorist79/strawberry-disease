@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Validate CVAT export for PlantVillage re-annotation
+Validate PlantVillage re-annotation
 
 This script validates that:
 1. All bounding boxes are within image boundaries
@@ -197,8 +197,8 @@ def compare_datasets(original_stats, new_stats, split_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Validate CVAT exported annotations')
-    parser.add_argument('--input', required=True, help='Path to re-annotated dataset')
+    parser = argparse.ArgumentParser(description='Validate PlantVillage re-annotated dataset')
+    parser.add_argument('--input', required=True, help='Path to dataset')
     parser.add_argument('--original', required=True, help='Path to original dataset for comparison')
     parser.add_argument('--splits', nargs='+', default=['train', 'valid', 'test'], help='Splits to validate')
 
@@ -208,7 +208,7 @@ def main():
     original_path = Path(args.original)
 
     print("=" * 70)
-    print("CVAT Export Validation")
+    print("PlantVillage Re-annotation Validation")
     print("=" * 70)
     print(f"\nInput:    {input_path}")
     print(f"Original: {original_path}")
@@ -322,7 +322,7 @@ def main():
     else:
         print("❌ VALIDATION FAILED!")
         print(f"   Found {total_invalid} invalid bounding boxes.")
-        print("   Please fix errors in CVAT and re-export.")
+        print("   Please fix errors in the dataset.")
         return 1
 
 

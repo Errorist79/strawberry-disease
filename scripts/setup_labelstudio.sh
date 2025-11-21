@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Label Studio Setup Script for PlantVillage Re-annotation
-# Much simpler alternative to CVAT
 
 set -e
 
