@@ -11,16 +11,16 @@ Supported datasets:
 Usage:
     python scripts/download_roboflow.py \
         --dataset strawberry-disease/strawberry-disease-detection-dataset \
-        --output data/external/roboflow_4918
+        --output data/external/roboflow_4918 \
+        --version 1
 """
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
 
-def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = 'yolov8') -> Path:
+def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = 'yolov8', version: int = 1) -> Path:
     """
     Download dataset from Roboflow Universe using roboflow CLI.
 
@@ -28,6 +28,7 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
         dataset_id: Roboflow dataset ID (workspace/dataset-name)
         output_dir: Output directory
         format: Export format (yolov8, yolov5, coco, etc.)
+        version: Dataset version number (default: 1)
 
     Returns:
         Path to downloaded dataset
@@ -39,6 +40,7 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
     print(f"Downloading Roboflow Dataset")
     print(f"{'='*70}")
     print(f"Dataset: {dataset_id}")
+    print(f"Version: {version}")
     print(f"Format: {format}")
     print(f"Output: {output_dir}")
     print()
@@ -88,13 +90,12 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
         # Get project
         project = rf.workspace(workspace).project(dataset_name)
 
-        # Download latest version (version 1 is usually the latest/published version)
-        print("\nDownloading dataset (using latest version)...")
+        # Download specified version
+        print(f"\nDownloading dataset version {version}...")
 
-        # Most Roboflow datasets use version 1 as the published/stable version
         # The version() method takes an integer
         # Note: Roboflow downloads to location/project_name by default
-        version_obj = project.version(1)
+        version_obj = project.version(version)
 
         print(f"Downloading to: {output_dir}")
         dataset = version_obj.download(format)
@@ -108,7 +109,7 @@ def download_roboflow_dataset(dataset_id: str, output_dir: Path, format: str = '
         else:
             print(f"  Dataset object: {dataset}")
             # Default Roboflow behavior: downloads to ./project-name-version
-            actual_location = Path.cwd() / f"{dataset_name}-1"
+            actual_location = Path.cwd() / f"{dataset_name}-{version}"
 
         # If downloaded to a different location, move to output_dir
         if actual_location.exists() and actual_location != output_dir:
@@ -158,6 +159,8 @@ def download_via_web(dataset_id: str, output_dir: Path):
             'https://universe.roboflow.com/strawberry-disease/strawberry-disease-detection-dataset',
         'research-proj/strawberry-diseases-detection':
             'https://universe.roboflow.com/research-proj/strawberry-diseases-detection',
+        'test-8ictq/strawberry_healthy-93tkm':
+            'https://universe.roboflow.com/test-8ictq/strawberry_healthy-93tkm',
     }
 
     url = dataset_urls.get(dataset_id, f"https://universe.roboflow.com/{dataset_id}")
@@ -200,6 +203,12 @@ def main():
         help='Dataset export format'
     )
     parser.add_argument(
+        '--version',
+        type=int,
+        default=1,
+        help='Dataset version number (default: 1)'
+    )
+    parser.add_argument(
         '--manual',
         action='store_true',
         help='Show manual download instructions instead of API download'
@@ -210,7 +219,7 @@ def main():
     if args.manual:
         download_via_web(args.dataset, args.output)
     else:
-        download_roboflow_dataset(args.dataset, args.output, args.format)
+        download_roboflow_dataset(args.dataset, args.output, args.format, args.version)
 
         print(f"\n🎉 SUCCESS!")
         print(f"Dataset ready at: {args.output}")
